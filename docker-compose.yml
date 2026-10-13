@@ -1,0 +1,23 @@
+x-agent: &agent
+  build: .
+  env_file: .env
+  environment:
+    HOST: 0.0.0.0
+    FLIGHTS_URL: http://flights:8001
+    HOTELS_URL: http://hotels:8002
+    ACTIVITIES_URL: http://activities:8003
+
+services:
+  flights:
+    <<: *agent
+    command: python -m mesh.agents.flights
+  hotels:
+    <<: *agent
+    command: python -m mesh.agents.hotels
+  activities:
+    <<: *agent
+    command: python -m mesh.agents.activities
+  orchestrator:
+    <<: *agent
+    ports: ["8000:8000"]
+    depends_on: [flights, hotels, activities]

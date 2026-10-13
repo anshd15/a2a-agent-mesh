@@ -5,7 +5,8 @@ from crewai import LLM, Agent, Crew, Task
 from crewai.tools import tool
 
 from mesh.common.a2a_server import build_app, build_card
-from mesh.config import HOTELS_PORT, MODEL
+from mesh.config import HOST, HOTELS_PORT, HOTELS_URL, MODEL
+from mesh.telemetry import setup_tracing
 
 
 @tool("search_hotels")
@@ -38,11 +39,12 @@ async def handle(query: str) -> str:
 card = build_card(
     "hotels_agent",
     "Finds best-value hotels (CrewAI).",
-    HOTELS_PORT,
+    HOTELS_URL,
     [AgentSkill(id="search_hotels", name="Search hotels",
                 description="Find hotels for given dates", tags=["travel", "hotels"])],
 )
 app = build_app(card, handle)
 
 if __name__ == "__main__":
-    uvicorn.run(app, port=HOTELS_PORT)
+    setup_tracing("hotels_agent")
+    uvicorn.run(app, host=HOST, port=HOTELS_PORT)

@@ -8,7 +8,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
 
 from mesh.common.a2a_server import build_app, build_card
-from mesh.config import FLIGHTS_PORT, MODEL
+from mesh.config import FLIGHTS_PORT, FLIGHTS_URL, HOST, MODEL
+from mesh.telemetry import setup_tracing
 
 
 @tool
@@ -34,11 +35,12 @@ async def handle(query: str) -> str:
 card = build_card(
     "flights_agent",
     "Finds and compares flights (LangGraph).",
-    FLIGHTS_PORT,
+    FLIGHTS_URL,
     [AgentSkill(id="search_flights", name="Search flights",
                 description="Find flights between two cities", tags=["travel", "flights"])],
 )
 app = build_app(card, handle)
 
 if __name__ == "__main__":
-    uvicorn.run(app, port=FLIGHTS_PORT)
+    setup_tracing("flights_agent")
+    uvicorn.run(app, host=HOST, port=FLIGHTS_PORT)

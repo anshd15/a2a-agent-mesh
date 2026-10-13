@@ -1,9 +1,12 @@
 """Activities specialist built natively with ADK, exposed via to_a2a."""
+from urllib.parse import urlparse
+
 import uvicorn
 from google.adk.a2a.utils.agent_to_a2a import to_a2a
 from google.adk.agents import Agent
 
-from mesh.config import ACTIVITIES_PORT, MODEL
+from mesh.config import ACTIVITIES_PORT, ACTIVITIES_URL, HOST, MODEL
+from mesh.telemetry import setup_tracing
 
 
 def find_activities(city: str, interests: str) -> dict:
@@ -20,7 +23,9 @@ root_agent = Agent(
     instruction="Use find_activities and return a short, day-by-day list of ideas.",
     tools=[find_activities],
 )
-app = to_a2a(root_agent, port=ACTIVITIES_PORT)
+# The card advertises the public host so other containers can reach it.
+app = to_a2a(root_agent, host=urlparse(ACTIVITIES_URL).hostname, port=ACTIVITIES_PORT)
 
 if __name__ == "__main__":
-    uvicorn.run(app, port=ACTIVITIES_PORT)
+    setup_tracing("activities_agent")
+    uvicorn.run(app, host=HOST, port=ACTIVITIES_PORT)

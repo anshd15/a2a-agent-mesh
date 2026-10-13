@@ -2,14 +2,16 @@
 from google.adk.agents import Agent
 from google.adk.agents.remote_a2a_agent import AGENT_CARD_WELL_KNOWN_PATH, RemoteA2aAgent
 
-from mesh.config import ACTIVITIES_PORT, FLIGHTS_PORT, HOTELS_PORT, MODEL
+from mesh.config import ACTIVITIES_URL, FLIGHTS_URL, HOTELS_URL, MODEL
+from mesh.orchestrator.guardrails import block_prompt_injection, redact_pii
+from mesh.orchestrator.tools import check_budget, save_trip_preferences
 
 
-def remote(name: str, port: int, description: str) -> RemoteA2aAgent:
+def remote(name: str, base_url: str, description: str) -> RemoteA2aAgent:
     return RemoteA2aAgent(
         name=name,
         description=description,
-        agent_card=f"http://localhost:{port}{AGENT_CARD_WELL_KNOWN_PATH}",
+        agent_card=f"{base_url.rstrip('/')}{AGENT_CARD_WELL_KNOWN_PATH}",
     )
 
 
@@ -18,13 +20,18 @@ root_agent = Agent(
     model=MODEL,
     description="Plans complete trips by coordinating specialist agents.",
     instruction=(
-        "You plan trips. Collect origin, destination, dates and interests. "
-        "Delegate flights to flights_agent, hotels to hotels_agent and things to do "
-        "to activities_agent, then merge their answers into one itinerary with a total cost."
+        "You plan trips. First collect origin, destination, dates, budget and interests, "
+        "then call save_trip_preferences.\n"
+        "Current trip brief: {trip?}\n"
+        "Delegate flights to flights_agent, hotels to hotels_agent and things to do to "
+        "activities_agent. Before presenting the itinerary, call check_budget with every "
+        "quoted cost and flag anything over budget. Finish with one itinerary and a total."
     ),
+    tools=[save_trip_preferences, check_budget],
+    before_model_callback=[block_prompt_injection, redact_pii],
     sub_agents=[
-        remote("flights_agent", FLIGHTS_PORT, "Finds and compares flights."),
-        remote("hotels_agent", HOTELS_PORT, "Finds best-value hotels."),
-        remote("activities_agent", ACTIVITIES_PORT, "Suggests things to do."),
+        remote("flights_agent", FLIGHTS_URL, "Finds and compares flights."),
+        remote("hotels_agent", HOTELS_URL, "Finds best-value hotels."),
+        remote("activities_agent", ACTIVITIES_URL, "Suggests things to do."),
     ],
 )

@@ -12,7 +12,7 @@ PII_PATTERNS = {
     "PHONE": re.compile(r"\+\d[\d ]{8,14}\d|\b\d{10}\b"),
 }
 INJECTION = re.compile(
-    r"ignore (all |any )?(previous|prior|above) instructions|reveal (your )?system prompt", re.I
+    r"ignore (all |any )?(previous|prior|above) instructions|reveal (your )?system prompt", re.IGNORECASE
 )
 REFUSAL = "I can only help with planning trips."
 

@@ -4,7 +4,7 @@ from mesh.agents import flights, hotels
 def test_a2a_cards_advertise_skills():
     for mod in (flights, hotels):
         assert mod.card.skills
-        assert mod.card.url.startswith("http://localhost:")
+        assert mod.card.supported_interfaces[0].url.startswith("http://localhost:")
 
 
 def test_orchestrator_wires_all_specialists():

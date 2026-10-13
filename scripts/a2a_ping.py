@@ -39,7 +39,9 @@ def main(base_url: str, text: str) -> None:
                 }
             },
         }
-        reply = client.post(card["url"], json=payload).raise_for_status().json()
+        # A2A 1.x lists endpoints under supportedInterfaces; 0.3 used a top-level url.
+        rpc_url = card.get("url") or card["supportedInterfaces"][0]["url"]
+        reply = client.post(rpc_url, json=payload).raise_for_status().json()
     if "error" in reply:
         sys.exit(f"A2A error: {reply['error']}")
     result = reply["result"]

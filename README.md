@@ -40,6 +40,13 @@ Poke a single agent with raw A2A JSON-RPC:
 python scripts/a2a_ping.py http://localhost:8001 "Flights from Mumbai to Goa on 2026-12-20"
 ```
 
+Check every agent card is reachable:
+```bash
+python scripts/check_mesh.py      # exits non-zero if any agent is down
+```
+
+Dev setup: `pre-commit install` runs ruff lint and format on every commit.
+
 Run everything in containers:
 ```bash
 docker compose up --build         # dev UI on http://localhost:8000

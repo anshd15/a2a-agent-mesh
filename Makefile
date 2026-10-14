@@ -1,5 +1,5 @@
 .RECIPEPREFIX = >
-.PHONY: install agents web run ping test lint eval up
+.PHONY: install agents web run check ping test lint eval up
 
 install:
 > pip install -e ".[dev,tracing]"
@@ -12,6 +12,9 @@ web:
 
 run:
 > adk run mesh/orchestrator
+
+check:
+> python scripts/check_mesh.py
 
 ping:
 > python scripts/a2a_ping.py http://localhost:8001 "Flights from Mumbai to Goa on 2026-12-20"

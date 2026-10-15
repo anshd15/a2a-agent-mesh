@@ -5,7 +5,8 @@ Tempo, or Cloud Trace via the OTel collector), and to stdout when MESH_TRACE_CON
 """
 import os
 
-from opentelemetry import trace
+import httpx
+from opentelemetry import propagate, trace
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
@@ -20,3 +21,13 @@ def setup_tracing(service_name: str) -> None:
     if os.getenv("MESH_TRACE_CONSOLE") == "1":
         provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
     trace.set_tracer_provider(provider)
+
+
+async def _inject_traceparent(request: httpx.Request) -> None:
+    propagate.inject(request.headers)
+
+
+def traced_async_client(timeout: float) -> httpx.AsyncClient:
+    """httpx client that forwards the current trace context on every outgoing A2A call,
+    so a specialist's span joins the orchestrator's trace."""
+    return httpx.AsyncClient(timeout=timeout, event_hooks={"request": [_inject_traceparent]})

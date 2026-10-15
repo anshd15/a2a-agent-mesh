@@ -1,0 +1,7 @@
+[
+  {
+    "name": "visa_agent",
+    "url": "http://localhost:8004",
+    "description": "Checks visa and entry requirements for a destination."
+  }
+]

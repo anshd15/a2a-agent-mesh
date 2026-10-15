@@ -16,3 +16,6 @@ ACTIVITIES_PORT = int(os.getenv("ACTIVITIES_PORT", "8003"))
 FLIGHTS_URL = os.getenv("FLIGHTS_URL", f"http://localhost:{FLIGHTS_PORT}")
 HOTELS_URL = os.getenv("HOTELS_URL", f"http://localhost:{HOTELS_PORT}")
 ACTIVITIES_URL = os.getenv("ACTIVITIES_URL", f"http://localhost:{ACTIVITIES_PORT}")
+
+# How long the orchestrator waits on a remote specialist before giving up.
+A2A_TIMEOUT_S = float(os.getenv("A2A_TIMEOUT_S", "120"))

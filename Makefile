@@ -1,5 +1,5 @@
 .RECIPEPREFIX = >
-.PHONY: install agents web run check ping test lint eval up
+.PHONY: install agents web run check ping test lint eval judge up deploy
 
 install:
 > pip install -e ".[dev,tracing]"
@@ -28,5 +28,11 @@ lint:
 eval:
 > adk eval mesh/orchestrator eval/trip_planner.evalset.json --config_file_path eval/test_config.json --print_detailed_results
 
+judge:
+> python eval/judge.py
+
 up:
 > docker compose up --build
+
+deploy:
+> bash deploy/cloudrun.sh

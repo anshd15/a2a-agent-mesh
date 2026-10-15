@@ -23,8 +23,15 @@ root_agent = Agent(
     instruction="Use find_activities and return a short, day-by-day list of ideas.",
     tools=[find_activities],
 )
-# The card advertises the public host so other containers can reach it.
-app = to_a2a(root_agent, host=urlparse(ACTIVITIES_URL).hostname, port=ACTIVITIES_PORT)
+# The card advertises the public URL (scheme, host, port) - e.g. https on Cloud Run -
+# while uvicorn below still binds the local ACTIVITIES_PORT.
+_public = urlparse(ACTIVITIES_URL)
+app = to_a2a(
+    root_agent,
+    host=_public.hostname,
+    port=_public.port or (443 if _public.scheme == "https" else 80),
+    protocol=_public.scheme,
+)
 
 if __name__ == "__main__":
     setup_tracing("activities_agent")

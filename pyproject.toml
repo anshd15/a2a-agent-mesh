@@ -1,6 +1,6 @@
 [project]
 name = "a2a-agent-mesh"
-version = "0.1.0"
+version = "0.3.0"
 description = "Google ADK orchestrator delegating to LangGraph/CrewAI/ADK agents over A2A"
 requires-python = ">=3.11"
 dependencies = [

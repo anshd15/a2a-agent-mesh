@@ -15,6 +15,9 @@ from opentelemetry import propagate, trace
 from opentelemetry.trace import Status, StatusCode
 from starlette.applications import Starlette
 
+from mesh.common.cache import TTLCache
+from mesh.config import SPECIALIST_CACHE_TTL_S
+
 Handler = Callable[[str], Awaitable[str]]
 tracer = trace.get_tracer("mesh.a2a")
 logger = logging.getLogger(__name__)
@@ -23,9 +26,27 @@ logger = logging.getLogger(__name__)
 class FnExecutor(AgentExecutor):
     """Runs a text-in/text-out async handler for each A2A request, inside a trace span."""
 
-    def __init__(self, name: str, handler: Handler):
+    def __init__(self, name: str, handler: Handler, cache_ttl_s: float = 0.0):
         self.name = name
         self.handler = handler
+        self.cache = TTLCache(cache_ttl_s)
+
+    async def _answer(self, query: str, span: trace.Span) -> str:
+        cached = self.cache.get(query)
+        span.set_attribute("a2a.cache_hit", cached is not None)
+        if cached is not None:
+            return cached
+        try:
+            reply = await self.handler(query)
+        except Exception as exc:  # any framework failure becomes a readable reply
+            logger.exception("%s failed", self.name)
+            span.record_exception(exc)
+            span.set_status(Status(StatusCode.ERROR, type(exc).__name__))
+            # A reply (not a failed task) lets the orchestrator plan around the gap.
+            return (f"{self.name} could not complete this request "
+                    f"({type(exc).__name__}). Continue without it or try again.")
+        self.cache.put(query, reply)  # only successful answers are cached
+        return reply
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         # Continue the caller's trace if it sent W3C traceparent headers.
@@ -36,15 +57,7 @@ class FnExecutor(AgentExecutor):
         ) as span:
             query = context.get_user_input()
             started = time.perf_counter()
-            try:
-                reply = await self.handler(query)
-            except Exception as exc:  # any framework failure becomes a readable reply
-                logger.exception("%s failed", self.name)
-                span.record_exception(exc)
-                span.set_status(Status(StatusCode.ERROR, type(exc).__name__))
-                # A reply (not a failed task) lets the orchestrator plan around the gap.
-                reply = (f"{self.name} could not complete this request "
-                         f"({type(exc).__name__}). Continue without it or try again.")
+            reply = await self._answer(query, span)
             span.set_attribute("a2a.agent", self.name)
             span.set_attribute("a2a.input_chars", len(query))
             span.set_attribute("a2a.output_chars", len(reply))
@@ -72,9 +85,10 @@ def build_card(name: str, description: str, url: str, skills: list[AgentSkill]) 
     )
 
 
-def build_app(card: AgentCard, handler: Handler) -> Starlette:
+def build_app(card: AgentCard, handler: Handler,
+              cache_ttl_s: float = SPECIALIST_CACHE_TTL_S) -> Starlette:
     request_handler = DefaultRequestHandler(
-        agent_executor=FnExecutor(card.name, handler),
+        agent_executor=FnExecutor(card.name, handler, cache_ttl_s=cache_ttl_s),
         task_store=InMemoryTaskStore(),
         agent_card=card,
     )

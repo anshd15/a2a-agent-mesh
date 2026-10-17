@@ -19,3 +19,6 @@ ACTIVITIES_URL = os.getenv("ACTIVITIES_URL", f"http://localhost:{ACTIVITIES_PORT
 
 # How long the orchestrator waits on a remote specialist before giving up.
 A2A_TIMEOUT_S = float(os.getenv("A2A_TIMEOUT_S", "120"))
+
+# Specialists reuse an answer to an identical query for this long (0 disables caching).
+SPECIALIST_CACHE_TTL_S = float(os.getenv("SPECIALIST_CACHE_TTL_S", "300"))

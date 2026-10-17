@@ -31,3 +31,34 @@ async def test_failures_become_a_readable_reply():
 
     reply = await run(FnExecutor("flights_agent", broken), "BOM to GOI")
     assert "flights_agent could not complete" in reply and "TimeoutError" in reply
+
+
+async def test_identical_queries_hit_the_cache():
+    calls = []
+
+    async def counting(query: str) -> str:
+        calls.append(query)
+        return f"answer {len(calls)}"
+
+    executor = FnExecutor("hotels_agent", counting, cache_ttl_s=60)
+    assert await run(executor, "Hotels in Goa") == "answer 1"
+    assert await run(executor, "  hotels in  GOA ") == "answer 1"
+    assert len(calls) == 1
+
+
+async def test_cache_disabled_and_errors_never_cached():
+    calls = []
+
+    async def flaky(query: str) -> str:
+        calls.append(query)
+        if len(calls) == 1:
+            raise RuntimeError("blip")
+        return "ok"
+
+    executor = FnExecutor("hotels_agent", flaky, cache_ttl_s=60)
+    assert "could not complete" in await run(executor, "q")
+    assert await run(executor, "q") == "ok"
+    no_cache = FnExecutor("x", flaky, cache_ttl_s=0)
+    await run(no_cache, "q")
+    await run(no_cache, "q")
+    assert len(calls) == 4

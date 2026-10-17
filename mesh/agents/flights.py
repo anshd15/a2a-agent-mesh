@@ -9,17 +9,21 @@ from langgraph.prebuilt import create_react_agent
 
 from mesh.common.a2a_server import build_app, build_card
 from mesh.config import FLIGHTS_PORT, FLIGHTS_URL, HOST, MODEL
+from mesh.data.inventory import flight_options
 from mesh.telemetry import setup_tracing
 
 
 @tool
-def search_flights(origin: str, destination: str, date: str) -> list[dict]:
-    """Search flights from origin to destination on a date (YYYY-MM-DD)."""
-    # TODO: replace mock data with a real flights API (Amadeus / Duffel)
-    return [
-        {"airline": "IndiGo", "depart": f"{date}T06:10", "price_usd": 142},
-        {"airline": "Vistara", "depart": f"{date}T13:45", "price_usd": 188},
-    ]
+def search_flights(
+    origin: str, destination: str, date: str, max_price_usd: int | None = None
+) -> list[dict]:
+    """Search flights from origin to destination on a date (YYYY-MM-DD), cheapest first.
+
+    Pass max_price_usd to drop options above the traveller's limit.
+    """
+    # Deterministic mock inventory; swap for a real flights API (Amadeus / Duffel).
+    options = flight_options(origin, destination, date)
+    return [o for o in options if max_price_usd is None or o["price_usd"] <= max_price_usd]
 
 
 @cache

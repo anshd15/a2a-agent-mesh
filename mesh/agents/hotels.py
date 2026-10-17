@@ -6,17 +6,26 @@ from crewai.tools import tool
 
 from mesh.common.a2a_server import build_app, build_card
 from mesh.config import HOST, HOTELS_PORT, HOTELS_URL, MODEL
+from mesh.data.inventory import hotel_options
 from mesh.telemetry import setup_tracing
+
+
+def format_hotels(city: str, check_in: str, nights: int) -> str:
+    return "\n".join(
+        f"{i}. {h['name']} - ${h['nightly_usd']}/night, ${h['total_usd']} for {nights} "
+        f"nights, {h['rating']} stars"
+        for i, h in enumerate(hotel_options(city, check_in, nights), start=1)
+    )
 
 
 @tool("search_hotels")
 def search_hotels(city: str, check_in: str, nights: int) -> str:
-    """Search hotels in a city for a check-in date (YYYY-MM-DD) and number of nights."""
-    # TODO: replace mock data with a real hotels API
-    return (
-        f"1. Harbour View Inn, {city} - $95/night, 4.4 stars\n"
-        f"2. The Grand {city} - $210/night, 4.8 stars"
-    )
+    """Search hotels in a city for a check-in date (YYYY-MM-DD) and number of nights.
+
+    Results are ranked by rating per dollar and include the total for the stay.
+    """
+    # Deterministic mock inventory; swap for a real hotels API.
+    return format_hotels(city, check_in, nights)
 
 
 def crew(query: str) -> Crew:

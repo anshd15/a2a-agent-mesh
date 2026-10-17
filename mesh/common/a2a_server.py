@@ -1,4 +1,5 @@
 """Wrap an agent from any framework as an A2A server (a2a-sdk 1.x)."""
+import logging
 import time
 from collections.abc import Awaitable, Callable
 
@@ -11,10 +12,12 @@ from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import AgentCapabilities, AgentCard, AgentInterface, AgentSkill
 from a2a.utils import AGENT_CARD_WELL_KNOWN_PATH
 from opentelemetry import propagate, trace
+from opentelemetry.trace import Status, StatusCode
 from starlette.applications import Starlette
 
 Handler = Callable[[str], Awaitable[str]]
 tracer = trace.get_tracer("mesh.a2a")
+logger = logging.getLogger(__name__)
 
 
 class FnExecutor(AgentExecutor):
@@ -33,7 +36,15 @@ class FnExecutor(AgentExecutor):
         ) as span:
             query = context.get_user_input()
             started = time.perf_counter()
-            reply = await self.handler(query)
+            try:
+                reply = await self.handler(query)
+            except Exception as exc:  # any framework failure becomes a readable reply
+                logger.exception("%s failed", self.name)
+                span.record_exception(exc)
+                span.set_status(Status(StatusCode.ERROR, type(exc).__name__))
+                # A reply (not a failed task) lets the orchestrator plan around the gap.
+                reply = (f"{self.name} could not complete this request "
+                         f"({type(exc).__name__}). Continue without it or try again.")
             span.set_attribute("a2a.agent", self.name)
             span.set_attribute("a2a.input_chars", len(query))
             span.set_attribute("a2a.output_chars", len(reply))

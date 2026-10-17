@@ -1,4 +1,5 @@
 """FnExecutor behaviour, driven directly with fake A2A context and queue."""
+import asyncio
 from types import SimpleNamespace
 
 from a2a.helpers import get_message_text
@@ -62,3 +63,20 @@ async def test_cache_disabled_and_errors_never_cached():
     await run(no_cache, "q")
     await run(no_cache, "q")
     assert len(calls) == 4
+
+
+async def test_concurrency_is_capped():
+    active = peak = 0
+
+    async def slow(query: str) -> str:
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
+        await asyncio.sleep(0.01)
+        active -= 1
+        return query
+
+    executor = FnExecutor("flights_agent", slow, max_concurrency=2)
+    replies = await asyncio.gather(*(run(executor, f"q{i}") for i in range(6)))
+    assert peak == 2
+    assert sorted(replies) == [f"q{i}" for i in range(6)]

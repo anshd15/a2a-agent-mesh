@@ -1,4 +1,5 @@
 """Wrap an agent from any framework as an A2A server (a2a-sdk 1.x)."""
+import asyncio
 import logging
 import time
 from collections.abc import Awaitable, Callable
@@ -16,7 +17,7 @@ from opentelemetry.trace import Status, StatusCode
 from starlette.applications import Starlette
 
 from mesh.common.cache import TTLCache
-from mesh.config import SPECIALIST_CACHE_TTL_S
+from mesh.config import MAX_CONCURRENCY, SPECIALIST_CACHE_TTL_S
 
 Handler = Callable[[str], Awaitable[str]]
 tracer = trace.get_tracer("mesh.a2a")
@@ -26,10 +27,12 @@ logger = logging.getLogger(__name__)
 class FnExecutor(AgentExecutor):
     """Runs a text-in/text-out async handler for each A2A request, inside a trace span."""
 
-    def __init__(self, name: str, handler: Handler, cache_ttl_s: float = 0.0):
+    def __init__(self, name: str, handler: Handler, cache_ttl_s: float = 0.0,
+                 max_concurrency: int = MAX_CONCURRENCY):
         self.name = name
         self.handler = handler
         self.cache = TTLCache(cache_ttl_s)
+        self.slots = asyncio.Semaphore(max_concurrency)
 
     async def _answer(self, query: str, span: trace.Span) -> str:
         cached = self.cache.get(query)
@@ -37,7 +40,8 @@ class FnExecutor(AgentExecutor):
         if cached is not None:
             return cached
         try:
-            reply = await self.handler(query)
+            async with self.slots:
+                reply = await self.handler(query)
         except Exception as exc:  # any framework failure becomes a readable reply
             logger.exception("%s failed", self.name)
             span.record_exception(exc)
@@ -86,9 +90,11 @@ def build_card(name: str, description: str, url: str, skills: list[AgentSkill]) 
 
 
 def build_app(card: AgentCard, handler: Handler,
-              cache_ttl_s: float = SPECIALIST_CACHE_TTL_S) -> Starlette:
+              cache_ttl_s: float = SPECIALIST_CACHE_TTL_S,
+              max_concurrency: int = MAX_CONCURRENCY) -> Starlette:
     request_handler = DefaultRequestHandler(
-        agent_executor=FnExecutor(card.name, handler, cache_ttl_s=cache_ttl_s),
+        agent_executor=FnExecutor(card.name, handler, cache_ttl_s=cache_ttl_s,
+                                  max_concurrency=max_concurrency),
         task_store=InMemoryTaskStore(),
         agent_card=card,
     )

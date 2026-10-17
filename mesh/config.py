@@ -22,3 +22,6 @@ A2A_TIMEOUT_S = float(os.getenv("A2A_TIMEOUT_S", "120"))
 
 # Specialists reuse an answer to an identical query for this long (0 disables caching).
 SPECIALIST_CACHE_TTL_S = float(os.getenv("SPECIALIST_CACHE_TTL_S", "300"))
+
+# Max requests a specialist runs at once; extra requests queue (protects LLM quotas).
+MAX_CONCURRENCY = int(os.getenv("MAX_CONCURRENCY", "4"))

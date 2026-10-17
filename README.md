@@ -28,8 +28,11 @@ See [docs/architecture.md](docs/architecture.md) for the request sequence and de
 - **Guardrails** - `before_model_callback`s cap input length, block prompt injection and mask card numbers, emails and phones before anything reaches Gemini.
 - **Session state** - the trip brief lives in ADK state (`{trip?}` in the instruction), and budget maths is a deterministic tool, not LLM arithmetic.
 - **Cost tracking** - an `after_model_callback` records calls, tokens and estimated USD cost per session.
-- **Distributed tracing** - the orchestrator forwards `traceparent` on every A2A call and each specialist continues the trace; export via OTLP.
-- **Evals** - `adk eval` set, an LLM-as-judge scorer over 6 scenarios, and 22 offline tests in CI.
+- **Resilient specialists** - failures come back as readable replies (the planner works around the gap), identical queries hit a TTL cache, a semaphore caps concurrent LLM calls, and `/healthz` gates compose start-up.
+- **Distributed tracing** - the orchestrator forwards `traceparent` on every A2A call and each specialist continues the trace (cache hits and errors are tagged on the span); export via OTLP.
+- **Reproducible data** - flights and hotels come from a seeded mock inventory, so demos and evals give the same options every run.
+- **Persistent sessions** - `make web` and compose store ADK sessions in SQLite, so trip briefs and usage survive restarts.
+- **Evals** - `adk eval` set; an LLM-as-judge over 6 scenarios with repeated runs (mean and stdev) plus a deterministic delegation-coverage metric; 40 offline tests in CI.
 - **Deployable** - one Docker image, `docker compose` locally, `deploy/cloudrun.sh` for Cloud Run.
 
 ## Quickstart
@@ -37,7 +40,7 @@ See [docs/architecture.md](docs/architecture.md) for the request sequence and de
 cp .env.example .env              # add your Gemini API key
 pip install -e ".[dev,tracing]"
 python scripts/run_agents.py      # starts the 3 A2A servers (any OS)
-adk web mesh                      # ADK dev UI -> pick "orchestrator"
+adk web --session_service_uri sqlite+aiosqlite:///./sessions.db mesh   # or: make web
 ```
 
 Poke a single agent with raw A2A JSON-RPC:
@@ -64,9 +67,9 @@ PROJECT=my-project REGION=asia-south1 bash deploy/cloudrun.sh
 
 ## Tests and evals
 ```bash
-pytest -q                         # offline: protocol, guardrails, tools, registry, usage
+pytest -q                         # 40 offline tests: protocol, resilience, guardrails, tools, evals
 make eval                         # adk eval (needs API key + agents running)
-python eval/judge.py              # LLM-as-judge -> eval/results.md (needs API key + agents)
+python eval/judge.py --runs 3     # LLM-as-judge -> eval/results.md (needs API key + agents)
 ```
 
 Tracing: set `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g. a local Jaeger at `http://localhost:4318`) or `MESH_TRACE_CONSOLE=1`.
@@ -77,6 +80,8 @@ Tracing: set `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g. a local Jaeger at `http://local
 - [x] `adk eval` set, LLM-as-judge scorer, offline tests
 - [x] Docker compose and Cloud Run deploy script
 - [x] Pluggable agent registry and per-session cost tracking
+- [x] Graceful failures, response cache, concurrency limit, health checks
+- [x] Persistent SQLite sessions; judge with repeated runs and delegation coverage
 - [ ] Publish judge scores from a live run
 - [ ] Real flight / hotel APIs instead of mock data
 - [ ] Streaming responses across A2A

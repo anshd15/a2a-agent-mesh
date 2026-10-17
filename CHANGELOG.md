@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0
+- Seeded mock travel inventory: flights cheapest first with a price cap, hotels with stay totals.
+- Specialists turn handler failures into readable replies and mark the span as ERROR.
+- TTL response cache (`SPECIALIST_CACHE_TTL_S`) and concurrency limit (`MAX_CONCURRENCY`).
+- `/healthz` on every specialist; compose waits for healthy specialists.
+- Judge: delegation-coverage metric and `--runs N` with stdev.
+- Persistent ADK sessions in SQLite (`google-adk[db]`).
+
 ## 0.3.0
 - Pluggable agent registry (`MESH_REGISTRY`) and configurable A2A timeout.
 - Trace context propagated from the orchestrator to every specialist.

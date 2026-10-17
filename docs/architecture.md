@@ -34,6 +34,9 @@ sequenceDiagram
 | Budget maths in a tool | LLM arithmetic drifts; `check_budget` is exact and testable. |
 | Guardrails as `before_model_callback`s | They run on every model call, cost nothing when they pass, and short-circuit without an LLM call when they fire. |
 | Trace context over HTTP headers | One trace spans orchestrator and specialists, so slow hops are visible per agent. |
+| Failures returned as replies, not failed tasks | The planner can still deliver a partial itinerary and say which piece is missing. |
+| Cache and concurrency limit in the executor | Every specialist gets them for free, whatever framework it uses. |
+| Seeded mock inventory | Evals compare planner behaviour, not random data, so score changes mean something. |
 
 ## Measuring quality
 

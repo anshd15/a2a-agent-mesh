@@ -29,7 +29,7 @@ eval:
 > adk eval mesh/orchestrator eval/trip_planner.evalset.json --config_file_path eval/test_config.json --print_detailed_results
 
 judge:
-> python eval/judge.py
+> python eval/judge.py --runs 3
 
 up:
 > docker compose up --build

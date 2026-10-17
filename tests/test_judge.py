@@ -33,3 +33,9 @@ def test_summary_table_averages_each_column():
     assert "| a | 4 | 4 | 4 | 4 | 1.00 |" in table
     assert table.count("**3.00**") == len(judge.CRITERIA)
     assert "**0.67**" in table  # delegation: (1 + 1/3) / 2
+
+
+def test_stdev_row_only_for_multiple_results():
+    assert "stdev" not in judge.summarise([result("a", 4)])
+    table = judge.summarise([result("a #1", 5), result("a #2", 3)])
+    assert table.splitlines()[-1].startswith("| *stdev* | *1.00* |")

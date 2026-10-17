@@ -1,15 +1,17 @@
 """LLM-as-judge: run each scenario through the trip planner and score the itinerary.
 
-    python eval/judge.py     # needs GOOGLE_API_KEY and the specialists running
+    python eval/judge.py --runs 3    # needs GOOGLE_API_KEY and the specialists running
 
 Alongside the judge's 1-5 scores, a deterministic "delegation" metric records which
-specialists the planner actually called. Writes eval/results.md.
+specialists the planner actually called. LLM runs are noisy, so --runs repeats every
+scenario and the report shows the spread (stdev) next to the mean. Writes eval/results.md.
 """
+import argparse
 import asyncio
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from statistics import mean
+from statistics import mean, pstdev
 
 from google import genai
 from google.adk.runners import InMemoryRunner
@@ -67,8 +69,12 @@ def summarise(results: list[Result]) -> str:
     header = "| Scenario | " + " | ".join(columns) + " |\n|---|" + "---|" * len(columns)
     lines = [f"| {r.scenario} | " + " | ".join(_fmt(v) for v in _row(r)) + " |"
              for r in results]
-    averages = [mean(col) for col in zip(*(_row(r) for r in results))]
-    lines.append("| **average** | " + " | ".join(f"**{a:.2f}**" for a in averages) + " |")
+    columns_values = list(zip(*(_row(r) for r in results)))
+    lines.append("| **average** | "
+                 + " | ".join(f"**{mean(c):.2f}**" for c in columns_values) + " |")
+    if len(results) > 1:
+        lines.append("| *stdev* | "
+                     + " | ".join(f"*{pstdev(c):.2f}*" for c in columns_values) + " |")
     return "\n".join([header, *lines])
 
 
@@ -97,21 +103,26 @@ async def judge(client: genai.Client, prompt: str, itinerary: str) -> Score:
     return Score.model_validate_json(response.text)
 
 
-async def main() -> None:
+async def main(runs: int) -> None:
     from mesh.orchestrator.agent import root_agent
 
     runner = InMemoryRunner(agent=root_agent)
     client = genai.Client()
     results = []
     for scenario in load_scenarios():
-        itinerary, authors = await plan(runner, scenario["prompt"])
-        score = await judge(client, scenario["prompt"], itinerary)
-        results.append(Result(scenario["id"], score, authors))
-        print(scenario["id"], score.model_dump(exclude={"rationale"}), sorted(authors))
-    report = "# Itinerary quality (LLM-as-judge)\n\n" + summarise(results) + "\n"
+        for run in range(1, runs + 1):
+            label = scenario["id"] if runs == 1 else f"{scenario['id']} #{run}"
+            itinerary, authors = await plan(runner, scenario["prompt"])
+            score = await judge(client, scenario["prompt"], itinerary)
+            results.append(Result(label, score, authors))
+            print(label, score.model_dump(exclude={"rationale"}), sorted(authors))
+    report = (f"# Itinerary quality (LLM-as-judge, {MODEL}, {runs} run(s) per scenario)\n\n"
+              + summarise(results) + "\n")
     (HERE / "results.md").write_text(report)
     print(report)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--runs", type=int, default=1, help="repeats per scenario")
+    asyncio.run(main(parser.parse_args().runs))

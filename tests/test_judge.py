@@ -7,10 +7,13 @@ _spec = importlib.util.spec_from_file_location(
 judge = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(judge)
 
+ALL = set(judge.SPECIALISTS)
 
-def score(value: int):
-    return judge.Score(completeness=value, budget_adherence=value, coherence=value,
-                       grounding=value, rationale="")
+
+def result(sid: str, value: int, delegated: set[str] = ALL):
+    score = judge.Score(completeness=value, budget_adherence=value, coherence=value,
+                        grounding=value, rationale="")
+    return judge.Result(sid, score, delegated)
 
 
 def test_scenarios_are_well_formed():
@@ -20,7 +23,13 @@ def test_scenarios_are_well_formed():
     assert len({s["id"] for s in scenarios}) == len(scenarios)
 
 
-def test_summary_table_averages_each_criterion():
-    table = judge.summarise([("a", score(4)), ("b", score(2))])
+def test_delegation_coverage_counts_only_expected_specialists():
+    assert judge.delegation_coverage({"trip_planner", "flights_agent"}) == 1 / 3
+    assert judge.delegation_coverage(ALL | {"trip_planner"}) == 1.0
+
+
+def test_summary_table_averages_each_column():
+    table = judge.summarise([result("a", 4), result("b", 2, {"flights_agent"})])
+    assert "| a | 4 | 4 | 4 | 4 | 1.00 |" in table
     assert table.count("**3.00**") == len(judge.CRITERIA)
-    assert "| a | 4 | 4 | 4 | 4 |" in table
+    assert "**0.67**" in table  # delegation: (1 + 1/3) / 2

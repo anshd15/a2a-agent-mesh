@@ -2,11 +2,14 @@
 
     python eval/judge.py     # needs GOOGLE_API_KEY and the specialists running
 
-Writes eval/results.md with per-scenario scores and averages.
+Alongside the judge's 1-5 scores, a deterministic "delegation" metric records which
+specialists the planner actually called. Writes eval/results.md.
 """
 import asyncio
 import json
+from dataclasses import dataclass
 from pathlib import Path
+from statistics import mean
 
 from google import genai
 from google.adk.runners import InMemoryRunner
@@ -17,6 +20,7 @@ from mesh.config import MODEL
 
 HERE = Path(__file__).parent
 CRITERIA = ("completeness", "budget_adherence", "coherence", "grounding")
+SPECIALISTS = ("flights_agent", "hotels_agent", "activities_agent")
 RUBRIC = """You are grading a travel itinerary produced by an AI trip planner.
 Score each criterion from 1 (poor) to 5 (excellent):
 - completeness: covers flights, hotel and activities for every day requested
@@ -34,29 +38,52 @@ class Score(BaseModel):
     rationale: str
 
 
+@dataclass
+class Result:
+    scenario: str
+    score: Score
+    delegated: set[str]
+
+
 def load_scenarios(path: Path = HERE / "scenarios.jsonl") -> list[dict]:
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
-def summarise(rows: list[tuple[str, Score]]) -> str:
-    header = "| Scenario | " + " | ".join(CRITERIA) + " |\n|---|" + "---|" * len(CRITERIA)
-    lines = [f"| {sid} | " + " | ".join(str(getattr(s, c)) for c in CRITERIA) + " |"
-             for sid, s in rows]
-    averages = [sum(getattr(s, c) for _, s in rows) / len(rows) for c in CRITERIA]
+def delegation_coverage(delegated: set[str], expected: tuple[str, ...] = SPECIALISTS) -> float:
+    """Share of expected specialists the planner actually handed work to."""
+    return len(set(expected) & delegated) / len(expected)
+
+
+def _row(result: Result) -> list[float]:
+    return [getattr(result.score, c) for c in CRITERIA] + [delegation_coverage(result.delegated)]
+
+
+def _fmt(value: float) -> str:
+    return str(value) if isinstance(value, int) else f"{value:.2f}"
+
+
+def summarise(results: list[Result]) -> str:
+    columns = [*CRITERIA, "delegation"]
+    header = "| Scenario | " + " | ".join(columns) + " |\n|---|" + "---|" * len(columns)
+    lines = [f"| {r.scenario} | " + " | ".join(_fmt(v) for v in _row(r)) + " |"
+             for r in results]
+    averages = [mean(col) for col in zip(*(_row(r) for r in results))]
     lines.append("| **average** | " + " | ".join(f"**{a:.2f}**" for a in averages) + " |")
     return "\n".join([header, *lines])
 
 
-async def plan(runner: InMemoryRunner, prompt: str) -> str:
+async def plan(runner: InMemoryRunner, prompt: str) -> tuple[str, set[str]]:
+    """Run one request; return the final text and every agent that produced an event."""
     session = await runner.session_service.create_session(app_name=runner.app_name,
                                                           user_id="judge")
     message = types.Content(role="user", parts=[types.Part(text=prompt)])
-    final = ""
+    final, authors = "", set()
     async for event in runner.run_async(user_id="judge", session_id=session.id,
                                         new_message=message):
+        authors.add(event.author)
         if event.is_final_response() and event.content and event.content.parts:
             final = "".join(p.text or "" for p in event.content.parts)
-    return final
+    return final, authors
 
 
 async def judge(client: genai.Client, prompt: str, itinerary: str) -> Score:
@@ -75,13 +102,13 @@ async def main() -> None:
 
     runner = InMemoryRunner(agent=root_agent)
     client = genai.Client()
-    rows = []
+    results = []
     for scenario in load_scenarios():
-        itinerary = await plan(runner, scenario["prompt"])
+        itinerary, authors = await plan(runner, scenario["prompt"])
         score = await judge(client, scenario["prompt"], itinerary)
-        rows.append((scenario["id"], score))
-        print(scenario["id"], score.model_dump(exclude={"rationale"}))
-    report = "# Itinerary quality (LLM-as-judge)\n\n" + summarise(rows) + "\n"
+        results.append(Result(scenario["id"], score, authors))
+        print(scenario["id"], score.model_dump(exclude={"rationale"}), sorted(authors))
+    report = "# Itinerary quality (LLM-as-judge)\n\n" + summarise(results) + "\n"
     (HERE / "results.md").write_text(report)
     print(report)
 

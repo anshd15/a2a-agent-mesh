@@ -41,3 +41,14 @@ def test_message_send_round_trip():
     reply = client().post("/", json=payload).json()
     assert "error" not in reply, reply
     assert "HELLO MESH" in str(reply["result"])
+
+
+def test_healthz_reports_agent_name():
+    assert client().get("/healthz").json() == {"status": "ok", "agent": "echo_agent"}
+
+
+def test_adk_specialist_also_exposes_healthz():
+    from mesh.agents import activities
+
+    with TestClient(activities.app) as c:
+        assert c.get("/healthz").json()["agent"] == "activities_agent"

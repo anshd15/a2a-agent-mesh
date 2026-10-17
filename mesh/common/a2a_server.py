@@ -15,6 +15,9 @@ from a2a.utils import AGENT_CARD_WELL_KNOWN_PATH
 from opentelemetry import propagate, trace
 from opentelemetry.trace import Status, StatusCode
 from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from starlette.routing import Route
 
 from mesh.common.cache import TTLCache
 from mesh.config import MAX_CONCURRENCY, SPECIALIST_CACHE_TTL_S
@@ -89,6 +92,15 @@ def build_card(name: str, description: str, url: str, skills: list[AgentSkill]) 
     )
 
 
+def health_route(name: str) -> Route:
+    """Liveness probe for Docker / Cloud Run that never touches the LLM."""
+
+    async def healthz(request: Request) -> JSONResponse:
+        return JSONResponse({"status": "ok", "agent": name})
+
+    return Route("/healthz", healthz)
+
+
 def build_app(card: AgentCard, handler: Handler,
               cache_ttl_s: float = SPECIALIST_CACHE_TTL_S,
               max_concurrency: int = MAX_CONCURRENCY) -> Starlette:
@@ -103,5 +115,6 @@ def build_app(card: AgentCard, handler: Handler,
             *create_agent_card_routes(card, card_url=AGENT_CARD_WELL_KNOWN_PATH),
             # v0.3 compat keeps clients that still speak "message/send" working.
             *create_jsonrpc_routes(request_handler, "/", enable_v0_3_compat=True),
+            health_route(card.name),
         ]
     )

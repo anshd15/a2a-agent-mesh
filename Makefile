@@ -1,4 +1,6 @@
 .RECIPEPREFIX = >
+# Sessions (trip brief, usage) persist across restarts in a local SQLite file.
+SESSION_DB_URI ?= sqlite+aiosqlite:///./sessions.db
 .PHONY: install agents web run check ping test lint eval judge up deploy
 
 install:
@@ -8,7 +10,7 @@ agents:
 > python scripts/run_agents.py
 
 web:
-> adk web mesh
+> adk web --session_service_uri $(SESSION_DB_URI) mesh
 
 run:
 > adk run mesh/orchestrator

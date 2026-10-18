@@ -1,4 +1,6 @@
 """Deterministic tools the trip planner uses alongside its remote specialists."""
+from datetime import date
+
 from google.adk.tools.tool_context import ToolContext
 
 
@@ -15,6 +17,14 @@ def save_trip_preferences(
 
     Dates are YYYY-MM-DD; interests is a comma-separated list.
     """
+    try:
+        start, end = date.fromisoformat(start_date), date.fromisoformat(end_date)
+    except ValueError:
+        return {"status": "error", "message": "Dates must be YYYY-MM-DD."}
+    if end <= start:
+        return {"status": "error", "message": "end_date must be after start_date."}
+    if budget_usd <= 0:
+        return {"status": "error", "message": "budget_usd must be positive."}
     trip = {
         "origin": origin,
         "destination": destination,
@@ -22,6 +32,7 @@ def save_trip_preferences(
         "end_date": end_date,
         "budget_usd": budget_usd,
         "interests": interests,
+        "nights": (end - start).days,
     }
     tool_context.state["trip"] = trip
     return {"status": "saved", "trip": trip}

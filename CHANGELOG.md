@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0
+- Jittered exponential-backoff retries for transient specialist errors (`RETRY_ATTEMPTS`).
+- `finalize_itinerary`: Pydantic-validated plan, stored in state, rendered as markdown with budget gap.
+- `convert_currency` tool and trip date/budget validation.
+- Red-team guardrail set (`eval/redteam.jsonl`); injection patterns widened to cover disregard/forget/print variants.
+- `scripts/load_test.py` with p50/p95/p99 latency and error rate.
+- docs/evaluation.md methodology.
+
 ## 0.4.0
 - Seeded mock travel inventory: flights cheapest first with a price cap, hotels with stay totals.
 - Specialists turn handler failures into readable replies and mark the span as ERROR.

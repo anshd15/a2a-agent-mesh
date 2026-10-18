@@ -20,19 +20,20 @@ flowchart LR
 | `hotels_agent` | CrewAI | 8002 | Find best-value hotels |
 | `activities_agent` | Google ADK (`to_a2a`) | 8003 | Suggest things to do |
 
-See [docs/architecture.md](docs/architecture.md) for the request sequence and design decisions.
+See [docs/architecture.md](docs/architecture.md) for the request sequence and design decisions, and [docs/evaluation.md](docs/evaluation.md) for how quality is measured.
 
 ## What it demonstrates
 - **Cross-framework interop** - one framework-agnostic `AgentExecutor` wraps LangGraph and CrewAI as A2A servers (a2a-sdk 1.x); ADK agents use `to_a2a` / `RemoteA2aAgent`.
 - **Pluggable agents** - add or replace specialists with a JSON registry (`MESH_REGISTRY`, see `registry.example.json`), no code changes.
 - **Guardrails** - `before_model_callback`s cap input length, block prompt injection and mask card numbers, emails and phones before anything reaches Gemini.
 - **Session state** - the trip brief lives in ADK state (`{trip?}` in the instruction), and budget maths is a deterministic tool, not LLM arithmetic.
+- **Structured output** - `finalize_itinerary` validates the plan with Pydantic, stores it in state and renders day-by-day markdown with the budget gap; budgets in INR, EUR and other currencies are converted by a deterministic tool, and trip dates are validated before saving.
 - **Cost tracking** - an `after_model_callback` records calls, tokens and estimated USD cost per session.
-- **Resilient specialists** - failures come back as readable replies (the planner works around the gap), identical queries hit a TTL cache, a semaphore caps concurrent LLM calls, and `/healthz` gates compose start-up.
+- **Resilient specialists** - transient errors get jittered-backoff retries, failures come back as readable replies (the planner works around the gap), identical queries hit a TTL cache, a semaphore caps concurrent LLM calls, and `/healthz` gates compose start-up.
 - **Distributed tracing** - the orchestrator forwards `traceparent` on every A2A call and each specialist continues the trace (cache hits and errors are tagged on the span); export via OTLP.
 - **Reproducible data** - flights and hotels come from a seeded mock inventory, so demos and evals give the same options every run.
 - **Persistent sessions** - `make web` and compose store ADK sessions in SQLite, so trip briefs and usage survive restarts.
-- **Evals** - `adk eval` set; an LLM-as-judge over 6 scenarios with repeated runs (mean and stdev) plus a deterministic delegation-coverage metric; 40 offline tests in CI.
+- **Evals** - `adk eval` set; an LLM-as-judge over 6 scenarios with repeated runs (mean and stdev) plus a deterministic delegation-coverage metric; a red-team guardrail set; a load-test script with p50/p95/p99; 61 offline tests in CI.
 - **Deployable** - one Docker image, `docker compose` locally, `deploy/cloudrun.sh` for Cloud Run.
 
 ## Quickstart
@@ -67,7 +68,8 @@ PROJECT=my-project REGION=asia-south1 bash deploy/cloudrun.sh
 
 ## Tests and evals
 ```bash
-pytest -q                         # 40 offline tests: protocol, resilience, guardrails, tools, evals
+pytest -q                         # 61 offline tests: protocol, resilience, guardrails, tools, evals
+python scripts/load_test.py http://localhost:8001 --requests 50 --concurrency 10
 make eval                         # adk eval (needs API key + agents running)
 python eval/judge.py --runs 3     # LLM-as-judge -> eval/results.md (needs API key + agents)
 ```
@@ -82,6 +84,7 @@ Tracing: set `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g. a local Jaeger at `http://local
 - [x] Pluggable agent registry and per-session cost tracking
 - [x] Graceful failures, response cache, concurrency limit, health checks
 - [x] Persistent SQLite sessions; judge with repeated runs and delegation coverage
+- [x] Retries, structured itinerary, currency tool, red-team set, load test
 - [ ] Publish judge scores from a live run
 - [ ] Real flight / hotel APIs instead of mock data
 - [ ] Streaming responses across A2A

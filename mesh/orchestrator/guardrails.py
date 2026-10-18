@@ -13,7 +13,8 @@ PII_PATTERNS = {
     "PHONE": re.compile(r"\+\d[\d ]{8,14}\d|\b\d{10}\b"),
 }
 INJECTION = re.compile(
-    r"ignore (all |any )?(previous|prior|above) instructions|reveal (your )?system prompt",
+    r"(ignore|disregard|forget) (all |any |the |your )?(previous|prior|above|earlier) "
+    r"(instructions|rules)|(reveal|print|show) (me )?(your )?(system prompt|hidden rules)",
     re.IGNORECASE,
 )
 MAX_INPUT_CHARS = int(os.getenv("MAX_INPUT_CHARS", "4000"))

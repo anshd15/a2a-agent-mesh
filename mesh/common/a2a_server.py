@@ -20,7 +20,8 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from mesh.common.cache import TTLCache
-from mesh.config import MAX_CONCURRENCY, SPECIALIST_CACHE_TTL_S
+from mesh.common.retry import retry_async
+from mesh.config import MAX_CONCURRENCY, RETRY_ATTEMPTS, SPECIALIST_CACHE_TTL_S
 
 Handler = Callable[[str], Awaitable[str]]
 tracer = trace.get_tracer("mesh.a2a")
@@ -31,11 +32,13 @@ class FnExecutor(AgentExecutor):
     """Runs a text-in/text-out async handler for each A2A request, inside a trace span."""
 
     def __init__(self, name: str, handler: Handler, cache_ttl_s: float = 0.0,
-                 max_concurrency: int = MAX_CONCURRENCY):
+                 max_concurrency: int = MAX_CONCURRENCY,
+                 retry_attempts: int = RETRY_ATTEMPTS):
         self.name = name
         self.handler = handler
         self.cache = TTLCache(cache_ttl_s)
         self.slots = asyncio.Semaphore(max_concurrency)
+        self.retry_attempts = retry_attempts
 
     async def _answer(self, query: str, span: trace.Span) -> str:
         cached = self.cache.get(query)
@@ -44,7 +47,9 @@ class FnExecutor(AgentExecutor):
             return cached
         try:
             async with self.slots:
-                reply = await self.handler(query)
+                # Transient errors (timeouts, resets) get jittered retries before giving up.
+                reply = await retry_async(lambda: self.handler(query),
+                                          attempts=self.retry_attempts)
         except Exception as exc:  # any framework failure becomes a readable reply
             logger.exception("%s failed", self.name)
             span.record_exception(exc)

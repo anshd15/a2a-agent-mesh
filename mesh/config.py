@@ -25,3 +25,6 @@ SPECIALIST_CACHE_TTL_S = float(os.getenv("SPECIALIST_CACHE_TTL_S", "300"))
 
 # Max requests a specialist runs at once; extra requests queue (protects LLM quotas).
 MAX_CONCURRENCY = int(os.getenv("MAX_CONCURRENCY", "4"))
+
+# Attempts per request for transient errors (timeouts, dropped connections); 1 disables.
+RETRY_ATTEMPTS = int(os.getenv("RETRY_ATTEMPTS", "2"))

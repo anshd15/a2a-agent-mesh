@@ -3,7 +3,9 @@ from google.adk.agents import Agent
 from google.adk.agents.remote_a2a_agent import AGENT_CARD_WELL_KNOWN_PATH, RemoteA2aAgent
 
 from mesh.config import A2A_TIMEOUT_S, MODEL
+from mesh.orchestrator.currency import convert_currency
 from mesh.orchestrator.guardrails import block_prompt_injection, limit_input_length, redact_pii
+from mesh.orchestrator.itinerary import finalize_itinerary
 from mesh.orchestrator.tools import check_budget, save_trip_preferences
 from mesh.orchestrator.usage import track_usage
 from mesh.registry import AgentEntry, load_registry
@@ -32,11 +34,13 @@ root_agent = Agent(
         "then call save_trip_preferences.\n"
         "Current trip brief: {trip?}\n"
         f"Specialists you can delegate to:\n{ROSTER}\n"
-        "Hand each part of the trip to the specialist whose description fits. Before "
-        "presenting the itinerary, call check_budget with every quoted cost and flag "
-        "anything over budget. Finish with one itinerary and a total."
+        "If the budget is given in another currency, convert it to USD with "
+        "convert_currency before saving. Hand each part of the trip to the specialist "
+        "whose description fits. Call check_budget with every quoted cost and flag "
+        "anything over budget, then call finalize_itinerary with the chosen items and "
+        "present its markdown."
     ),
-    tools=[save_trip_preferences, check_budget],
+    tools=[save_trip_preferences, check_budget, convert_currency, finalize_itinerary],
     before_model_callback=[limit_input_length, block_prompt_injection, redact_pii],
     after_model_callback=track_usage,
     sub_agents=[remote(e) for e in REGISTRY],

@@ -10,14 +10,14 @@ from google.adk.agents.remote_a2a_agent import AGENT_CARD_WELL_KNOWN_PATH, Remot
 from google.adk.models.base_llm import BaseLlm
 
 from mesh.common.a2a_server import build_card
-from mesh.config import A2A_TIMEOUT_S, MODEL
+from mesh.config import A2A_TIMEOUT_S, MESH_TOKEN, MODEL
 from mesh.orchestrator.currency import convert_currency
 from mesh.orchestrator.guardrails import block_prompt_injection, limit_input_length, redact_pii
 from mesh.orchestrator.itinerary import finalize_itinerary
+from mesh.orchestrator.outbound import outbound_client
 from mesh.orchestrator.tools import check_budget, save_trip_preferences
 from mesh.orchestrator.usage import track_usage
 from mesh.registry import AgentEntry, load_registry
-from mesh.telemetry import traced_async_client
 
 ClientFactory = Callable[[AgentEntry], httpx.AsyncClient]
 
@@ -64,7 +64,7 @@ def build_planner(
 ) -> Agent:
     """Build the trip planner; tests inject a scripted model, registry and in-process clients."""
     registry = load_registry() if registry is None else registry
-    client_factory = client_factory or (lambda entry: traced_async_client(A2A_TIMEOUT_S))
+    client_factory = client_factory or (lambda entry: outbound_client(A2A_TIMEOUT_S, MESH_TOKEN))
     roster = "\n".join(f"- {e.name}: {e.description}" for e in registry)
     return Agent(
         name="trip_planner",

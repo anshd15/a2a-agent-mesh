@@ -24,10 +24,5 @@ def setup_tracing(service_name: str) -> None:
 
 
 async def inject_traceparent(request: httpx.Request) -> None:
+    """httpx request hook: forward the current trace context so the callee joins the trace."""
     propagate.inject(request.headers)
-
-
-def traced_async_client(timeout: float) -> httpx.AsyncClient:
-    """httpx client that forwards the current trace context on every outgoing A2A call,
-    so a specialist's span joins the orchestrator's trace."""
-    return httpx.AsyncClient(timeout=timeout, event_hooks={"request": [inject_traceparent]})

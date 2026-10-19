@@ -12,6 +12,7 @@ sequenceDiagram
 
   U->>P: "Mumbai to Goa, 20-23 Dec, 600 USD, beaches"
   Note over P: before_model: length guard, injection block, PII mask
+  Note over P,A: outbound client: PII masked on the wire, Bearer MESH_TOKEN, traceparent
   P->>P: save_trip_preferences -> state["trip"]
   P->>F: A2A message/send (+ traceparent)
   F-->>P: flight options
@@ -36,6 +37,10 @@ sequenceDiagram
 | Trace context over HTTP headers | One trace spans orchestrator and specialists, so slow hops are visible per agent. |
 | Failures returned as replies, not failed tasks | The planner can still deliver a partial itinerary and say which piece is missing. |
 | Cache and concurrency limit in the executor | Every specialist gets them for free, whatever framework it uses. |
+| Shared-token auth in middleware | Card and /healthz stay public for discovery and probes; every RPC needs the token, whatever framework the specialist uses. |
+| Mask PII in the outbound transport | Guardrails only see what goes to Gemini; delegated messages leave the process, so masking happens on the wire for every specialist. |
+| Pin cards for private-network URLs | ADK only fetches cards over https or loopback http; pinning from the registry makes compose work and stops card-based RPC redirection. |
+| `build_planner()` factory | The model, registry and HTTP clients are injectable, so the full planner runs offline in tests with a scripted LLM. |
 | Seeded mock inventory | Evals compare planner behaviour, not random data, so score changes mean something. |
 
 ## Measuring quality

@@ -11,7 +11,8 @@ set -euo pipefail
 PROJECT=${PROJECT:?set PROJECT}
 REGION=${REGION:-us-central1}
 IMAGE="$REGION-docker.pkg.dev/$PROJECT/mesh/a2a-agent-mesh:latest"
-SECRETS="GOOGLE_API_KEY=gemini-api-key:latest,GEMINI_API_KEY=gemini-api-key:latest"
+# mesh-token: shared bearer token between planner and specialists (see SECURITY.md).
+SECRETS="GOOGLE_API_KEY=gemini-api-key:latest,GEMINI_API_KEY=gemini-api-key:latest,MESH_TOKEN=mesh-token:latest"
 
 gcloud artifacts repositories describe mesh --project "$PROJECT" --location "$REGION" >/dev/null 2>&1 \
   || gcloud artifacts repositories create mesh --project "$PROJECT" --location "$REGION" \

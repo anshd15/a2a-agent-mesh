@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0
+- Fix: docker compose delegation - ADK refuses to fetch plain-http cards from non-loopback hosts, so cards for private-network specialists are now pinned from the registry.
+- Shared bearer-token auth (`MESH_TOKEN`) on specialist A2A endpoints; card and /healthz stay public.
+- Outbound A2A client masks PII in delegated messages and sends the token and traceparent.
+- `build_planner()` factory with injectable model, registry and HTTP clients.
+- `ScriptedLlm` and an in-process `FakeMesh` harness; offline end-to-end tests of the full planner -> A2A -> specialist path.
+- SECURITY.md rewritten around the new controls and remaining limits.
+
 ## 0.5.0
 - Jittered exponential-backoff retries for transient specialist errors (`RETRY_ATTEMPTS`).
 - `finalize_itinerary`: Pydantic-validated plan, stored in state, rendered as markdown with budget gap.

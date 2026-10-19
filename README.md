@@ -32,8 +32,10 @@ See [docs/architecture.md](docs/architecture.md) for the request sequence and de
 - **Resilient specialists** - transient errors get jittered-backoff retries, failures come back as readable replies (the planner works around the gap), identical queries hit a TTL cache, a semaphore caps concurrent LLM calls, and `/healthz` gates compose start-up.
 - **Distributed tracing** - the orchestrator forwards `traceparent` on every A2A call and each specialist continues the trace (cache hits and errors are tagged on the span); export via OTLP.
 - **Reproducible data** - flights and hotels come from a seeded mock inventory, so demos and evals give the same options every run.
+- **Service security** - specialists require a shared bearer token (`MESH_TOKEN`); the planner's outbound client masks PII in every delegated A2A message on the wire; cards for private-network specialists are pinned from the registry (ADK only fetches https/loopback cards, so this is also what makes docker compose delegation work). See [SECURITY.md](SECURITY.md).
+- **Offline end-to-end tests** - a scripted `BaseLlm` drives the real planner through real A2A JSON-RPC to specialists served in-process: brief saved, delegation, usage, PII masked on the wire, injection short-circuit, pinned cards and token rejection - no API key needed. Key tests are checked to fail when the feature they cover is disabled.
 - **Persistent sessions** - `make web` and compose store ADK sessions in SQLite, so trip briefs and usage survive restarts.
-- **Evals** - `adk eval` set; an LLM-as-judge over 6 scenarios with repeated runs (mean and stdev) plus a deterministic delegation-coverage metric; a red-team guardrail set; a load-test script with p50/p95/p99; 61 offline tests in CI.
+- **Evals** - `adk eval` set; an LLM-as-judge over 6 scenarios with repeated runs (mean and stdev) plus a deterministic delegation-coverage metric; a red-team guardrail set; a load-test script with p50/p95/p99; 75 offline tests in CI, including end-to-end runs.
 - **Deployable** - one Docker image, `docker compose` locally, `deploy/cloudrun.sh` for Cloud Run.
 
 ## Quickstart
@@ -68,7 +70,7 @@ PROJECT=my-project REGION=asia-south1 bash deploy/cloudrun.sh
 
 ## Tests and evals
 ```bash
-pytest -q                         # 61 offline tests: protocol, resilience, guardrails, tools, evals
+pytest -q                         # 75 offline tests, incl. end-to-end planner -> A2A -> specialist
 python scripts/load_test.py http://localhost:8001 --requests 50 --concurrency 10
 make eval                         # adk eval (needs API key + agents running)
 python eval/judge.py --runs 3     # LLM-as-judge -> eval/results.md (needs API key + agents)
@@ -88,4 +90,6 @@ Tracing: set `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g. a local Jaeger at `http://local
 - [ ] Publish judge scores from a live run
 - [ ] Real flight / hotel APIs instead of mock data
 - [ ] Streaming responses across A2A
-- [ ] Auth between services (ID tokens) for private Cloud Run
+- [x] Shared-token auth between services, outbound PII masking, pinned cards
+- [x] Offline end-to-end tests with a scripted LLM
+- [ ] Per-agent identities (Cloud Run ID tokens / mTLS) instead of one shared token

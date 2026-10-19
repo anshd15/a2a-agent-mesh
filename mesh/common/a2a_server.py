@@ -19,9 +19,10 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
+from mesh.common.auth import protect
 from mesh.common.cache import TTLCache
 from mesh.common.retry import retry_async
-from mesh.config import MAX_CONCURRENCY, RETRY_ATTEMPTS, SPECIALIST_CACHE_TTL_S
+from mesh.config import MAX_CONCURRENCY, MESH_TOKEN, RETRY_ATTEMPTS, SPECIALIST_CACHE_TTL_S
 
 Handler = Callable[[str], Awaitable[str]]
 tracer = trace.get_tracer("mesh.a2a")
@@ -108,14 +109,15 @@ def health_route(name: str) -> Route:
 
 def build_app(card: AgentCard, handler: Handler,
               cache_ttl_s: float = SPECIALIST_CACHE_TTL_S,
-              max_concurrency: int = MAX_CONCURRENCY) -> Starlette:
+              max_concurrency: int = MAX_CONCURRENCY,
+              token: str | None = MESH_TOKEN) -> Starlette:
     request_handler = DefaultRequestHandler(
         agent_executor=FnExecutor(card.name, handler, cache_ttl_s=cache_ttl_s,
                                   max_concurrency=max_concurrency),
         task_store=InMemoryTaskStore(),
         agent_card=card,
     )
-    return Starlette(
+    app = Starlette(
         routes=[
             *create_agent_card_routes(card, card_url=AGENT_CARD_WELL_KNOWN_PATH),
             # v0.3 compat keeps clients that still speak "message/send" working.
@@ -123,3 +125,4 @@ def build_app(card: AgentCard, handler: Handler,
             health_route(card.name),
         ]
     )
+    return protect(app, token)

@@ -6,7 +6,8 @@ from google.adk.a2a.utils.agent_to_a2a import to_a2a
 from google.adk.agents import Agent
 
 from mesh.common.a2a_server import health_route
-from mesh.config import ACTIVITIES_PORT, ACTIVITIES_URL, HOST, MODEL
+from mesh.common.auth import protect
+from mesh.config import ACTIVITIES_PORT, ACTIVITIES_URL, HOST, MESH_TOKEN, MODEL
 from mesh.telemetry import setup_tracing
 
 
@@ -34,6 +35,7 @@ app = to_a2a(
     protocol=_public.scheme,
 )
 app.router.routes.append(health_route("activities_agent"))
+protect(app, MESH_TOKEN)
 
 if __name__ == "__main__":
     setup_tracing("activities_agent")

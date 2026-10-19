@@ -28,3 +28,6 @@ MAX_CONCURRENCY = int(os.getenv("MAX_CONCURRENCY", "4"))
 
 # Attempts per request for transient errors (timeouts, dropped connections); 1 disables.
 RETRY_ATTEMPTS = int(os.getenv("RETRY_ATTEMPTS", "2"))
+
+# Shared bearer token between planner and specialists; unset disables auth (local dev).
+MESH_TOKEN = os.getenv("MESH_TOKEN") or None

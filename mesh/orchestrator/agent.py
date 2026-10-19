@@ -1,11 +1,15 @@
 """ADK trip planner that delegates to remote specialists over A2A."""
+import ipaddress
 from collections.abc import Callable
+from urllib.parse import urlparse
 
 import httpx
+from a2a.types import AgentCard
 from google.adk.agents import Agent
 from google.adk.agents.remote_a2a_agent import AGENT_CARD_WELL_KNOWN_PATH, RemoteA2aAgent
 from google.adk.models.base_llm import BaseLlm
 
+from mesh.common.a2a_server import build_card
 from mesh.config import A2A_TIMEOUT_S, MODEL
 from mesh.orchestrator.currency import convert_currency
 from mesh.orchestrator.guardrails import block_prompt_injection, limit_input_length, redact_pii
@@ -18,11 +22,36 @@ from mesh.telemetry import traced_async_client
 ClientFactory = Callable[[AgentEntry], httpx.AsyncClient]
 
 
+def _is_loopback(host: str | None) -> bool:
+    if not host:
+        return False
+    if host == "localhost" or host.endswith(".localhost"):
+        return True
+    try:
+        return ipaddress.ip_address(host.strip("[]")).is_loopback
+    except ValueError:
+        return False
+
+
+def card_source(entry: AgentEntry) -> AgentCard | str:
+    """Where the planner gets a specialist's agent card.
+
+    https and loopback URLs: fetch the live card. Plain http on any other host (e.g.
+    http://flights:8001 inside docker compose): ADK refuses to fetch it, so pin a card built
+    from the trusted registry instead - which also stops a compromised specialist from
+    redirecting RPC traffic through its card.
+    """
+    parsed = urlparse(entry.url)
+    if parsed.scheme == "https" or _is_loopback(parsed.hostname):
+        return f"{entry.url.rstrip('/')}{AGENT_CARD_WELL_KNOWN_PATH}"
+    return build_card(entry.name, entry.description, entry.url, skills=[])
+
+
 def remote(entry: AgentEntry, client: httpx.AsyncClient) -> RemoteA2aAgent:
     return RemoteA2aAgent(
         name=entry.name,
         description=entry.description,
-        agent_card=f"{entry.url.rstrip('/')}{AGENT_CARD_WELL_KNOWN_PATH}",
+        agent_card=card_source(entry),
         timeout=A2A_TIMEOUT_S,
         httpx_client=client,
     )

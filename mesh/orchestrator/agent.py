@@ -10,13 +10,13 @@ from google.adk.agents.remote_a2a_agent import AGENT_CARD_WELL_KNOWN_PATH, Remot
 from google.adk.models.base_llm import BaseLlm
 
 from mesh.common.a2a_server import build_card
-from mesh.config import A2A_TIMEOUT_S, MESH_TOKEN, MODEL
+from mesh.config import A2A_TIMEOUT_S, MAX_SESSION_COST_USD, MESH_TOKEN, MODEL
 from mesh.orchestrator.currency import convert_currency
 from mesh.orchestrator.guardrails import block_prompt_injection, limit_input_length, redact_pii
 from mesh.orchestrator.itinerary import finalize_itinerary
 from mesh.orchestrator.outbound import outbound_client
 from mesh.orchestrator.tools import check_budget, save_trip_preferences
-from mesh.orchestrator.usage import track_usage
+from mesh.orchestrator.usage import cost_cap, track_usage
 from mesh.registry import AgentEntry, load_registry
 
 ClientFactory = Callable[[AgentEntry], httpx.AsyncClient]
@@ -61,6 +61,7 @@ def build_planner(
     model: str | BaseLlm = MODEL,
     registry: list[AgentEntry] | None = None,
     client_factory: ClientFactory | None = None,
+    cost_cap_usd: float = MAX_SESSION_COST_USD,
 ) -> Agent:
     """Build the trip planner; tests inject a scripted model, registry and in-process clients."""
     registry = load_registry() if registry is None else registry
@@ -82,7 +83,8 @@ def build_planner(
             "present its markdown."
         ),
         tools=[save_trip_preferences, check_budget, convert_currency, finalize_itinerary],
-        before_model_callback=[limit_input_length, block_prompt_injection, redact_pii],
+        before_model_callback=[cost_cap(cost_cap_usd), limit_input_length,
+                               block_prompt_injection, redact_pii],
         after_model_callback=track_usage,
         sub_agents=[remote(e, client_factory(e)) for e in registry],
     )

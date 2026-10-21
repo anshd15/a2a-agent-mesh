@@ -31,3 +31,6 @@ RETRY_ATTEMPTS = int(os.getenv("RETRY_ATTEMPTS", "2"))
 
 # Shared bearer token between planner and specialists; unset disables auth (local dev).
 MESH_TOKEN = os.getenv("MESH_TOKEN") or None
+
+# Per-session spend cap for the planner's model calls, in USD (0 disables).
+MAX_SESSION_COST_USD = float(os.getenv("MAX_SESSION_COST_USD", "0.50"))

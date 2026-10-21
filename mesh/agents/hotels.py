@@ -7,6 +7,7 @@ from crewai.tools import tool
 from mesh.common.a2a_server import build_app, build_card
 from mesh.config import HOST, HOTELS_PORT, HOTELS_URL, MODEL
 from mesh.data.inventory import hotel_options
+from mesh.data.parse import parse_trip
 from mesh.telemetry import setup_tracing
 
 
@@ -45,6 +46,16 @@ async def handle(query: str) -> str:
     return str(await crew(query).kickoff_async())
 
 
+async def fallback(query: str) -> str:
+    """Rule-based answer straight from the inventory when the CrewAI/Gemini path is down."""
+    facts = parse_trip(query)
+    if not (facts.destination and facts.start):
+        return "Hotels need a city and a check-in date (YYYY-MM-DD)."
+    nights = facts.nights or 1
+    header = f"Hotels in {facts.destination} from {facts.start}, {nights} night(s):"
+    return "\n".join([header, format_hotels(facts.destination, facts.start.isoformat(), nights)])
+
+
 card = build_card(
     "hotels_agent",
     "Finds best-value hotels (CrewAI).",
@@ -52,7 +63,7 @@ card = build_card(
     [AgentSkill(id="search_hotels", name="Search hotels",
                 description="Find hotels for given dates", tags=["travel", "hotels"])],
 )
-app = build_app(card, handle)
+app = build_app(card, handle, fallback=fallback)
 
 if __name__ == "__main__":
     setup_tracing("hotels_agent")

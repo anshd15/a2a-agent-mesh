@@ -10,6 +10,7 @@ from langgraph.prebuilt import create_react_agent
 from mesh.common.a2a_server import build_app, build_card
 from mesh.config import FLIGHTS_PORT, FLIGHTS_URL, HOST, MODEL
 from mesh.data.inventory import flight_options
+from mesh.data.parse import parse_trip
 from mesh.telemetry import setup_tracing
 
 
@@ -36,6 +37,18 @@ async def handle(query: str) -> str:
     return result["messages"][-1].content
 
 
+async def fallback(query: str) -> str:
+    """Rule-based answer straight from the inventory when the LangGraph/Gemini path is down."""
+    facts = parse_trip(query)
+    if not (facts.origin and facts.destination and facts.start):
+        return "Flights need an origin, a destination and a date (YYYY-MM-DD)."
+    options = flight_options(facts.origin, facts.destination, facts.start.isoformat())
+    lines = [f"- {o['airline']} {o['depart']}, {o['duration_min']} min, {o['stops']} stop(s): "
+             f"${o['price_usd']}" for o in options]
+    header = f"Flights {facts.origin} -> {facts.destination} on {facts.start}:"
+    return "\n".join([header, *lines])
+
+
 card = build_card(
     "flights_agent",
     "Finds and compares flights (LangGraph).",
@@ -43,7 +56,7 @@ card = build_card(
     [AgentSkill(id="search_flights", name="Search flights",
                 description="Find flights between two cities", tags=["travel", "flights"])],
 )
-app = build_app(card, handle)
+app = build_app(card, handle, fallback=fallback)
 
 if __name__ == "__main__":
     setup_tracing("flights_agent")

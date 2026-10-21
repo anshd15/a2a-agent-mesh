@@ -4,6 +4,8 @@ Fake specialists are served by the *real* A2A wrapper (auth, cache, retries, tra
 reached through the planner's real outbound client over httpx.ASGITransport - so the whole
 planner -> A2A JSON-RPC -> specialist path runs without sockets or an API key.
 """
+from collections.abc import Awaitable, Callable
+
 import httpx
 from a2a.types import AgentSkill
 from google.adk.agents import Agent
@@ -15,6 +17,7 @@ from mesh.orchestrator.outbound import outbound_client
 from mesh.registry import AgentEntry
 
 TOKEN = "harness-token"
+Handler = Callable[[str], Awaitable[str]]
 LOOPBACK_URLS = {
     "flights_agent": "http://127.0.0.1:8001",
     "hotels_agent": "http://127.0.0.1:8002",
@@ -23,8 +26,12 @@ LOOPBACK_URLS = {
 
 
 class FakeMesh:
-    def __init__(self, urls: dict[str, str] = LOOPBACK_URLS, token: str | None = TOKEN):
+    def __init__(self, urls: dict[str, str] = LOOPBACK_URLS, token: str | None = TOKEN,
+                 handlers: dict[str, Handler] | None = None,
+                 fallbacks: dict[str, Handler] | None = None):
         self.token = token
+        self.handlers = handlers or {}
+        self.fallbacks = fallbacks or {}
         self.received: dict[str, list[str]] = {name: [] for name in urls}
         self.registry = [AgentEntry(name, url, f"{name} specialist") for name, url in urls.items()]
         self.apps = {name: self._app(name, url) for name, url in urls.items()}
@@ -32,11 +39,14 @@ class FakeMesh:
     def _app(self, name: str, url: str):
         async def handler(query: str) -> str:
             self.received[name].append(query)
+            if custom := self.handlers.get(name):
+                return await custom(query)
             return f"{name} options for the trip"
 
         skill = AgentSkill(id=name, name=name, description=f"{name} specialist", tags=["travel"])
         card = build_card(name, f"{name} specialist", url, [skill])
-        return build_app(card, handler, cache_ttl_s=0, token=self.token)
+        return build_app(card, handler, cache_ttl_s=0, token=self.token,
+                         fallback=self.fallbacks.get(name))
 
     def client(self, entry: AgentEntry, token: str | None = None) -> httpx.AsyncClient:
         transport = httpx.ASGITransport(app=self.apps[entry.name])

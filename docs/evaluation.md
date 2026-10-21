@@ -4,7 +4,8 @@ Quality is measured in layers, cheapest and most deterministic first.
 
 | Layer | What it checks | Needs API key | Command |
 |---|---|---|---|
-| Offline end-to-end | Scripted planner -> real A2A JSON-RPC -> specialist: state, delegation, usage, PII masked on the wire, injection short-circuit, pinned cards, token rejection | No | `pytest tests/test_e2e.py tests/test_e2e_security.py` |
+| Offline end-to-end | Scripted planner -> real A2A JSON-RPC -> specialist: state, delegation, usage, PII masked on the wire, injection short-circuit, pinned cards, token rejection, degraded mode, cost cap, approval before booking, memory across sessions | No | `pytest tests/test_e2e*.py tests/test_booking.py tests/test_memory.py tests/test_cost_cap.py` |
+| Offline demo | The same paths, narrated, as a smoke-tested script | No | `make demo` |
 | Unit + protocol tests | Tools, inventory, executor (cache, retry, concurrency, errors), A2A HTTP round trip | No | `pytest -q` |
 | Red-team set | Injection block rate, benign false positives, PII labels, documented gaps | No | `pytest tests/test_redteam.py` |
 | `adk eval` | Tool trajectory and response match on fixed cases | Yes | `make eval` |

@@ -7,6 +7,9 @@ Please report vulnerabilities privately through GitHub's "Report a vulnerability
 - **PII masking, both directions out** - `before_model_callback`s mask card numbers, emails and phones before Gemini sees them, and the planner's outbound client masks the same patterns in every delegated A2A message before it leaves the process.
 - **Pinned agent cards** - specialists on a private network (plain http, non-loopback) get a card built from the trusted registry, so a compromised specialist cannot redirect RPC traffic by editing its card. Over https, ADK fetches the live card and checks its RPC URLs share the card's origin.
 - **Prompt-injection guardrail** - checked against `eval/redteam.jsonl` in CI.
+- **Human approval for side effects** - `book_trip` uses ADK `require_confirmation`; the run pauses and nothing is booked unless the traveller approves.
+- **Spend cap** - `MAX_SESSION_COST_USD` stops model calls for a session once its tracked cost reaches the limit.
+- **Right to be forgotten** - `forget_preferences` clears a traveller's stored preferences.
 
 These are covered by offline end-to-end tests (`tests/test_e2e*.py`).
 

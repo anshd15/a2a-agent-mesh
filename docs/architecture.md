@@ -21,6 +21,10 @@ sequenceDiagram
   P->>A: A2A message/send (+ traceparent)
   A-->>P: activity ideas
   P->>P: check_budget(costs) -> within_budget?
+  P->>P: finalize_itinerary -> state["itinerary"]
+  P-->>U: adk_request_confirmation (book_trip)
+  U->>P: approve
+  P->>P: book_trip -> state["booking"]
   Note over P: after_model: tokens + cost -> state["usage"]
   P-->>U: one itinerary with total cost
 ```
@@ -41,6 +45,10 @@ sequenceDiagram
 | Mask PII in the outbound transport | Guardrails only see what goes to Gemini; delegated messages leave the process, so masking happens on the wire for every specialist. |
 | Pin cards for private-network URLs | ADK only fetches cards over https or loopback http; pinning from the registry makes compose work and stops card-based RPC redirection. |
 | `build_planner()` factory | The model, registry and HTTP clients are injectable, so the full planner runs offline in tests with a scripted LLM. |
+| Rule-based fallback per specialist | An LLM outage returns inventory-backed options marked `[degraded mode]` instead of an error; never cached, so the LLM path is retried next time. |
+| Cost circuit breaker as a callback | A runaway delegation loop stops at `MAX_SESSION_COST_USD` before it becomes a bill, with no change to the model or tools. |
+| Preferences in `user:` state | ADK shares `user:`-prefixed state across a traveller's sessions, so memory needs no extra service and shows up in the instruction template. |
+| `require_confirmation` on `book_trip` | The one irreversible action pauses for explicit approval; declining means the tool never executes. |
 | Seeded mock inventory | Evals compare planner behaviour, not random data, so score changes mean something. |
 
 ## Measuring quality

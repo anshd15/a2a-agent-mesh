@@ -14,6 +14,7 @@ from mesh.config import A2A_TIMEOUT_S, MAX_SESSION_COST_USD, MESH_TOKEN, MODEL
 from mesh.orchestrator.currency import convert_currency
 from mesh.orchestrator.guardrails import block_prompt_injection, limit_input_length, redact_pii
 from mesh.orchestrator.itinerary import finalize_itinerary
+from mesh.orchestrator.memory import forget_preferences, remember_preference
 from mesh.orchestrator.outbound import outbound_client
 from mesh.orchestrator.tools import check_budget, save_trip_preferences
 from mesh.orchestrator.usage import cost_cap, track_usage
@@ -75,6 +76,10 @@ def build_planner(
             "You plan trips. First collect origin, destination, dates, budget and interests, "
             "then call save_trip_preferences.\n"
             "Current trip brief: {trip?}\n"
+            "Traveller preferences from earlier trips: {user:preferences?}\n"
+            "When the traveller states a lasting preference (seat, diet, hotel style), "
+            "call remember_preference; if they ask you to forget them, call "
+            "forget_preferences.\n"
             f"Specialists you can delegate to:\n{roster}\n"
             "If the budget is given in another currency, convert it to USD with "
             "convert_currency before saving. Hand each part of the trip to the specialist "
@@ -82,7 +87,8 @@ def build_planner(
             "anything over budget, then call finalize_itinerary with the chosen items and "
             "present its markdown."
         ),
-        tools=[save_trip_preferences, check_budget, convert_currency, finalize_itinerary],
+        tools=[save_trip_preferences, check_budget, convert_currency, finalize_itinerary,
+               remember_preference, forget_preferences],
         before_model_callback=[cost_cap(cost_cap_usd), limit_input_length,
                                block_prompt_injection, redact_pii],
         after_model_callback=track_usage,

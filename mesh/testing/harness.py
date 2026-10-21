@@ -68,3 +68,40 @@ async def run_planner(planner: Agent, text: str) -> tuple[list, dict]:
 def texts_by(events: list, author: str) -> list[str]:
     return [p.text for e in events if e.author == author and e.content
             for p in e.content.parts or [] if p.text]
+
+
+class Conversation:
+    """Several turns and sessions against one runner, so session and `user:` state persist."""
+
+    def __init__(self, planner: Agent, user_id: str = "u"):
+        self.runner = InMemoryRunner(agent=planner)
+        self.user_id = user_id
+        self.session_id: str | None = None
+
+    async def new_session(self) -> dict:
+        session = await self.runner.session_service.create_session(
+            app_name=self.runner.app_name, user_id=self.user_id)
+        self.session_id = session.id
+        return session.state
+
+    async def send(self, content: str | types.Content) -> list:
+        if self.session_id is None:
+            await self.new_session()
+        if isinstance(content, str):
+            content = types.Content(role="user", parts=[types.Part(text=content)])
+        return [e async for e in self.runner.run_async(
+            user_id=self.user_id, session_id=self.session_id, new_message=content)]
+
+    async def answer_confirmation(self, events: list, confirmed: bool) -> list:
+        """Reply to the pending adk_request_confirmation found in `events`."""
+        call_id = next(p.function_call.id for e in events if e.content
+                       for p in e.content.parts or []
+                       if p.function_call and p.function_call.name == "adk_request_confirmation")
+        reply = types.FunctionResponse(id=call_id, name="adk_request_confirmation",
+                                       response={"confirmed": confirmed})
+        return await self.send(types.Content(role="user", parts=[types.Part(function_response=reply)]))
+
+    async def state(self) -> dict:
+        session = await self.runner.session_service.get_session(
+            app_name=self.runner.app_name, user_id=self.user_id, session_id=self.session_id)
+        return session.state

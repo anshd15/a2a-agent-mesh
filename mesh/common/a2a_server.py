@@ -34,9 +34,11 @@ class FnExecutor(AgentExecutor):
 
     def __init__(self, name: str, handler: Handler, cache_ttl_s: float = 0.0,
                  max_concurrency: int = MAX_CONCURRENCY,
-                 retry_attempts: int = RETRY_ATTEMPTS):
+                 retry_attempts: int = RETRY_ATTEMPTS,
+                 fallback: Handler | None = None):
         self.name = name
         self.handler = handler
+        self.fallback = fallback
         self.cache = TTLCache(cache_ttl_s)
         self.slots = asyncio.Semaphore(max_concurrency)
         self.retry_attempts = retry_attempts
@@ -55,6 +57,15 @@ class FnExecutor(AgentExecutor):
             logger.exception("%s failed", self.name)
             span.record_exception(exc)
             span.set_status(Status(StatusCode.ERROR, type(exc).__name__))
+            if self.fallback is not None:
+                # Degraded mode: a rule-based answer beats no answer. Never cached, so
+                # the full LLM path is tried again on the next request.
+                try:
+                    reply = await self.fallback(query)
+                    span.set_attribute("a2a.fallback", True)
+                    return f"[degraded mode] {reply}"
+                except Exception:
+                    logger.exception("%s fallback failed", self.name)
             # A reply (not a failed task) lets the orchestrator plan around the gap.
             return (f"{self.name} could not complete this request "
                     f"({type(exc).__name__}). Continue without it or try again.")
@@ -110,10 +121,11 @@ def health_route(name: str) -> Route:
 def build_app(card: AgentCard, handler: Handler,
               cache_ttl_s: float = SPECIALIST_CACHE_TTL_S,
               max_concurrency: int = MAX_CONCURRENCY,
-              token: str | None = MESH_TOKEN) -> Starlette:
+              token: str | None = MESH_TOKEN,
+              fallback: Handler | None = None) -> Starlette:
     request_handler = DefaultRequestHandler(
         agent_executor=FnExecutor(card.name, handler, cache_ttl_s=cache_ttl_s,
-                                  max_concurrency=max_concurrency),
+                                  max_concurrency=max_concurrency, fallback=fallback),
         task_store=InMemoryTaskStore(),
         agent_card=card,
     )

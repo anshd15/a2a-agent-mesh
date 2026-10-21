@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0
+- Degraded mode: flights and hotels fall back to rule-based inventory answers when the LLM path fails (trip-fact parser + executor fallback, never cached).
+- Per-session cost circuit breaker (`MAX_SESSION_COST_USD`).
+- `remember_preference` / `forget_preferences` in ADK `user:` state, shared across a traveller's sessions and read by the planner's instruction.
+- `book_trip` behind ADK `require_confirmation`: booking only after human approval; idempotent references.
+- `scripts/offline_demo.py` (`make demo`): the whole mesh in ~10s with no API key, smoke-tested.
+- Test harness: handler/fallback overrides and a multi-session `Conversation` helper; 99 offline tests.
+
 ## 0.6.0
 - Fix: docker compose delegation - ADK refuses to fetch plain-http cards from non-loopback hosts, so cards for private-network specialists are now pinned from the registry.
 - Shared bearer-token auth (`MESH_TOKEN`) on specialist A2A endpoints; card and /healthz stay public.

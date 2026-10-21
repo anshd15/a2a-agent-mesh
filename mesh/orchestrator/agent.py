@@ -11,6 +11,7 @@ from google.adk.models.base_llm import BaseLlm
 
 from mesh.common.a2a_server import build_card
 from mesh.config import A2A_TIMEOUT_S, MAX_SESSION_COST_USD, MESH_TOKEN, MODEL
+from mesh.orchestrator.booking import book_trip_tool
 from mesh.orchestrator.currency import convert_currency
 from mesh.orchestrator.guardrails import block_prompt_injection, limit_input_length, redact_pii
 from mesh.orchestrator.itinerary import finalize_itinerary
@@ -85,10 +86,11 @@ def build_planner(
             "convert_currency before saving. Hand each part of the trip to the specialist "
             "whose description fits. Call check_budget with every quoted cost and flag "
             "anything over budget, then call finalize_itinerary with the chosen items and "
-            "present its markdown."
+            "present its markdown. If the traveller wants to book, call book_trip; they will "
+            "be asked to approve before anything is booked."
         ),
         tools=[save_trip_preferences, check_budget, convert_currency, finalize_itinerary,
-               remember_preference, forget_preferences],
+               remember_preference, forget_preferences, book_trip_tool],
         before_model_callback=[cost_cap(cost_cap_usd), limit_input_length,
                                block_prompt_injection, redact_pii],
         after_model_callback=track_usage,

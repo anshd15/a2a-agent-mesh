@@ -1,22 +1,5 @@
-"""Start every specialist agent as a subprocess (works on Windows, macOS and Linux)."""
-import subprocess
-import sys
-
-AGENTS = ["mesh.agents.flights", "mesh.agents.hotels", "mesh.agents.activities"]
-
-
-def main() -> None:
-    procs = [subprocess.Popen([sys.executable, "-m", mod]) for mod in AGENTS]
-    print(f"Started {len(procs)} agents on :8001-8003. Ctrl+C to stop.")
-    try:
-        for p in procs:
-            p.wait()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        for p in procs:
-            p.terminate()
-
+"""Thin wrapper - the launcher lives in mesh.launcher and is installed as `mesh-agents`."""
+from mesh.launcher import main
 
 if __name__ == "__main__":
     main()

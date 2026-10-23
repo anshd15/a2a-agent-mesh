@@ -1,12 +1,9 @@
 """Smoke test: the zero-setup demo keeps working as the code evolves."""
-import importlib.util
+import importlib
+import tomllib
 from pathlib import Path
 
-_spec = importlib.util.spec_from_file_location(
-    "offline_demo", Path(__file__).parents[1] / "scripts" / "offline_demo.py"
-)
-demo = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(demo)
+from mesh import demo
 
 
 async def test_demo_shows_every_scene_working():
@@ -20,3 +17,12 @@ async def test_demo_shows_every_scene_working():
     assert "traveller approved -> booking MESH-" in output
     assert "[degraded mode]" in output and "'degraded': 1" in output
     assert "in the planner's instructions: True" in output
+
+
+def test_console_scripts_point_at_real_callables():
+    pyproject = tomllib.loads((Path(__file__).parents[1] / "pyproject.toml").read_text())
+    scripts = pyproject["project"]["scripts"]
+    assert set(scripts) == {"mesh-demo", "mesh-agents"}
+    for target in scripts.values():
+        module, attr = target.split(":")
+        assert callable(getattr(importlib.import_module(module), attr))

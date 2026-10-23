@@ -7,7 +7,7 @@ install:
 > pip install -e ".[dev,tracing]"
 
 agents:
-> python scripts/run_agents.py
+> mesh-agents
 
 web:
 > adk web --session_service_uri $(SESSION_DB_URI) mesh
@@ -31,7 +31,7 @@ eval:
 > adk eval mesh/orchestrator eval/trip_planner.evalset.json --config_file_path eval/test_config.json --print_detailed_results
 
 demo:
-> python scripts/offline_demo.py
+> mesh-demo
 
 judge:
 > python eval/judge.py --runs 3

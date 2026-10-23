@@ -14,12 +14,17 @@ sequenceDiagram
   Note over P: before_model: length guard, injection block, PII mask
   Note over P,A: outbound client: PII masked on the wire, Bearer MESH_TOKEN, traceparent
   P->>P: save_trip_preferences -> state["trip"]
-  P->>F: A2A message/send (+ traceparent)
-  F-->>P: flight options
-  P->>H: A2A message/send (+ traceparent)
-  H-->>P: hotel options
-  P->>A: A2A message/send (+ traceparent)
-  A-->>P: activity ideas
+  par one model turn, three AgentTool calls in parallel
+    P->>F: A2A message/send: focused request only
+    F-->>P: flight options (or [degraded mode] from inventory)
+  and
+    P->>H: A2A message/send: focused request only
+    H-->>P: hotel options
+  and
+    P->>A: A2A message/send: focused request only
+    A-->>P: priced activities
+  end
+  Note over P: after_tool: calls / failures / degraded -> state["delegations"]
   P->>P: check_budget(costs) -> within_budget?
   P->>P: finalize_itinerary -> state["itinerary"]
   P-->>U: adk_request_confirmation (book_trip)
@@ -33,6 +38,7 @@ sequenceDiagram
 
 | Decision | Why |
 |---|---|
+| Specialists as `AgentTool`s, not sub-agents | With `transfer_to_agent` the specialist owns the rest of the turn; as tools the planner keeps control, calls independent specialists in one parallel turn (3 x 0.3s calls finish in ~0.3s in the demo), and sends each only its focused request - data minimisation for free. |
 | A2A between agents, not in-process calls | Each specialist can use the framework that suits it, scale independently and be swapped for a third-party agent. |
 | One `FnExecutor` for non-ADK agents | LangGraph and CrewAI only need an `async (text) -> text` handler; the wrapper owns the A2A protocol, cards and tracing. |
 | Registry file (`MESH_REGISTRY`) | New or partner agents join the mesh by config, and their descriptions drive delegation. |
@@ -45,6 +51,7 @@ sequenceDiagram
 | Mask PII in the outbound transport | Guardrails only see what goes to Gemini; delegated messages leave the process, so masking happens on the wire for every specialist. |
 | Pin cards for private-network URLs | ADK only fetches cards over https or loopback http; pinning from the registry makes compose work and stops card-based RPC redirection. |
 | `build_planner()` factory | The model, registry and HTTP clients are injectable, so the full planner runs offline in tests with a scripted LLM. |
+| Delegation stats in session state | Calls, failures and degraded answers per specialist are visible per conversation and to evals without opening a trace. |
 | Rule-based fallback per specialist | An LLM outage returns inventory-backed options marked `[degraded mode]` instead of an error; never cached, so the LLM path is retried next time. |
 | Cost circuit breaker as a callback | A runaway delegation loop stops at `MAX_SESSION_COST_USD` before it becomes a bill, with no change to the model or tools. |
 | Preferences in `user:` state | ADK shares `user:`-prefixed state across a traveller's sessions, so memory needs no extra service and shows up in the instruction template. |

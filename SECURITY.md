@@ -10,6 +10,7 @@ Please report vulnerabilities privately through GitHub's "Report a vulnerability
 - **Human approval for side effects** - `book_trip` uses ADK `require_confirmation`; the run pauses and nothing is booked unless the traveller approves.
 - **Spend cap** - `MAX_SESSION_COST_USD` stops model calls for a session once its tracked cost reaches the limit.
 - **Right to be forgotten** - `forget_preferences` clears a traveller's stored preferences.
+- **Data minimisation** - specialists are called as tools with a focused request, so they never receive the conversation; details shared earlier (names, passport numbers, addresses - which regex masking would miss) stay in the planner.
 
 These are covered by offline end-to-end tests (`tests/test_e2e*.py`).
 

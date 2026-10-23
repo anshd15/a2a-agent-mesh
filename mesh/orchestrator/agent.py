@@ -14,6 +14,7 @@ from mesh.common.a2a_server import build_card
 from mesh.config import A2A_TIMEOUT_S, MAX_SESSION_COST_USD, MESH_TOKEN, MODEL
 from mesh.orchestrator.booking import book_trip_tool
 from mesh.orchestrator.currency import convert_currency
+from mesh.orchestrator.delegation import delegation_tracker
 from mesh.orchestrator.guardrails import block_prompt_injection, limit_input_length, redact_pii
 from mesh.orchestrator.itinerary import finalize_itinerary
 from mesh.orchestrator.memory import forget_preferences, remember_preference
@@ -101,6 +102,7 @@ def build_planner(
         before_model_callback=[cost_cap(cost_cap_usd), limit_input_length,
                                block_prompt_injection, redact_pii],
         after_model_callback=track_usage,
+        after_tool_callback=delegation_tracker({e.name for e in registry}),
     )
 
 

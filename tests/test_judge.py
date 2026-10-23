@@ -39,3 +39,23 @@ def test_stdev_row_only_for_multiple_results():
     assert "stdev" not in judge.summarise([result("a", 4)])
     table = judge.summarise([result("a #1", 5), result("a #2", 3)])
     assert table.splitlines()[-1].startswith("| *stdev* | *1.00* |")
+
+
+async def test_plan_counts_specialists_reached_as_agent_tools():
+    from google.adk.runners import InMemoryRunner
+
+    from mesh.orchestrator.agent import build_planner
+    from mesh.testing.harness import FakeMesh
+    from mesh.testing.scripted_llm import ScriptedLlm, call_many, say
+
+    mesh = FakeMesh()
+    llm = ScriptedLlm(script=[
+        call_many(*((name, {"request": "Goa, 2026-12-20"}) for name in judge.SPECIALISTS)),
+        say("Your Goa plan."),
+    ])
+    planner = build_planner(model=llm, registry=mesh.registry, client_factory=mesh.client)
+
+    final, reached = await judge.plan(InMemoryRunner(agent=planner), "Plan Goa")
+
+    assert final == "Your Goa plan."
+    assert judge.delegation_coverage(reached) == 1.0

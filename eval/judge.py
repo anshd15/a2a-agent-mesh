@@ -79,17 +79,23 @@ def summarise(results: list[Result]) -> str:
 
 
 async def plan(runner: InMemoryRunner, prompt: str) -> tuple[str, set[str]]:
-    """Run one request; return the final text and every agent that produced an event."""
+    """Run one request; return the final text and every agent it reached.
+
+    Specialists are AgentTools, so they show up as tool calls named after the agent;
+    event authors are kept too, for agents that answer as sub-agents.
+    """
     session = await runner.session_service.create_session(app_name=runner.app_name,
                                                           user_id="judge")
     message = types.Content(role="user", parts=[types.Part(text=prompt)])
-    final, authors = "", set()
+    final, reached = "", set()
     async for event in runner.run_async(user_id="judge", session_id=session.id,
                                         new_message=message):
-        authors.add(event.author)
-        if event.is_final_response() and event.content and event.content.parts:
-            final = "".join(p.text or "" for p in event.content.parts)
-    return final, authors
+        reached.add(event.author)
+        parts = event.content.parts if event.content and event.content.parts else []
+        reached.update(p.function_call.name for p in parts if p.function_call)
+        if event.is_final_response() and parts:
+            final = "".join(p.text or "" for p in parts)
+    return final, reached
 
 
 async def judge(client: genai.Client, prompt: str, itinerary: str) -> Score:

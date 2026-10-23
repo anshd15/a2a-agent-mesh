@@ -23,6 +23,7 @@ flowchart LR
 See [docs/architecture.md](docs/architecture.md) for the request sequence and design decisions, and [docs/evaluation.md](docs/evaluation.md) for how quality is measured.
 
 ## What it demonstrates
+- **Parallel delegation with `AgentTool`** - the planner calls specialists as tools, so it keeps control of the turn, fans out to flights, hotels and activities in parallel (three 0.3s calls finish in ~0.3s in the demo) and sends each only a focused request - the conversation never leaves the planner.
 - **Cross-framework interop** - one framework-agnostic `AgentExecutor` wraps LangGraph and CrewAI as A2A servers (a2a-sdk 1.x); ADK agents use `to_a2a` / `RemoteA2aAgent`.
 - **Pluggable agents** - add or replace specialists with a JSON registry (`MESH_REGISTRY`, see `registry.example.json`), no code changes.
 - **Guardrails** - `before_model_callback`s cap input length, block prompt injection and mask card numbers, emails and phones before anything reaches Gemini.
@@ -36,21 +37,21 @@ See [docs/architecture.md](docs/architecture.md) for the request sequence and de
 - **Offline end-to-end tests** - a scripted `BaseLlm` drives the real planner through real A2A JSON-RPC to specialists served in-process: brief saved, delegation, usage, PII masked on the wire, injection short-circuit, pinned cards and token rejection - no API key needed. Key tests are checked to fail when the feature they cover is disabled.
 - **Agent controls** - booking pauses for explicit approval (ADK `require_confirmation`; declining means it never runs), a per-session cost circuit breaker (`MAX_SESSION_COST_USD`), and traveller preferences remembered across trips in ADK `user:` state (with `forget_preferences`).
 - **Persistent sessions** - `make web` and compose store ADK sessions in SQLite, so trip briefs and usage survive restarts.
-- **Evals** - `adk eval` set; an LLM-as-judge over 6 scenarios with repeated runs (mean and stdev) plus a deterministic delegation-coverage metric; a red-team guardrail set; a load-test script with p50/p95/p99; 99 offline tests in CI, including end-to-end runs.
+- **Evals** - `adk eval` set; an LLM-as-judge over 6 scenarios with repeated runs (mean and stdev) plus a deterministic delegation-coverage metric; a red-team guardrail set; a load-test script with p50/p95/p99; 107 offline tests in CI, including end-to-end runs.
 - **Deployable** - one Docker image, `docker compose` locally, `deploy/cloudrun.sh` for Cloud Run.
 
 ## Try it in 10 seconds (no API key)
 ```bash
 pip install -e ".[dev]"
-python scripts/offline_demo.py   # or: make demo
+mesh-demo                        # or: make demo / python scripts/offline_demo.py
 ```
-A scripted planner LLM drives the real code end to end: an injection refused with zero model calls, delegation over A2A with PII masked on the wire, an itinerary that is only booked after human approval, and a preference remembered into the next trip.
+A scripted planner LLM drives the real code end to end: an injection refused with zero model calls; a whole trip in one turn - three specialists called in parallel over A2A with PII masked on the wire, a budget check, a day-by-day itinerary and a booking made only after human approval; a specialist outage answered in degraded mode; and a preference remembered into the next trip.
 
 ## Quickstart
 ```bash
 cp .env.example .env              # add your Gemini API key
 pip install -e ".[dev,tracing]"
-python scripts/run_agents.py      # starts the 3 A2A servers (any OS)
+mesh-agents                      # starts the 3 A2A servers (any OS)
 adk web --session_service_uri sqlite+aiosqlite:///./sessions.db mesh   # or: make web
 ```
 
@@ -78,7 +79,7 @@ PROJECT=my-project REGION=asia-south1 bash deploy/cloudrun.sh
 
 ## Tests and evals
 ```bash
-pytest -q                         # 99 offline tests, incl. end-to-end planner -> A2A -> specialist
+pytest -q                         # 107 offline tests, incl. end-to-end planner -> A2A -> specialist
 python scripts/load_test.py http://localhost:8001 --requests 50 --concurrency 10
 make eval                         # adk eval (needs API key + agents running)
 python eval/judge.py --runs 3     # LLM-as-judge -> eval/results.md (needs API key + agents)
@@ -102,4 +103,5 @@ Tracing: set `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g. a local Jaeger at `http://local
 - [x] Offline end-to-end tests with a scripted LLM
 - [x] Degraded mode, cost circuit breaker, approval before booking, cross-trip memory
 - [x] Zero-setup offline demo
+- [x] Specialists as AgentTools: parallel fan-out, data minimisation, delegation stats
 - [ ] Per-agent identities (Cloud Run ID tokens / mTLS) instead of one shared token

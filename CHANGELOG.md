@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0
+- The planner calls specialists as ADK `AgentTool`s instead of `transfer_to_agent`: it keeps control of the turn, fans out in parallel and sends each specialist only a focused request.
+- Seeded activities inventory with prices, durations and interest matching.
+- Per-session delegation stats (calls, failures, degraded) via `after_tool_callback`.
+- Judge counts specialists reached as tool calls.
+- New end-to-end tests: a whole trip in one turn with parallel fan-out and approved booking; data minimisation across turns.
+- Demo reworked around the one-turn trip and a specialist outage; installed as `mesh-demo`, launcher as `mesh-agents`.
+
 ## 0.7.0
 - Degraded mode: flights and hotels fall back to rule-based inventory answers when the LLM path fails (trip-fact parser + executor fallback, never cached).
 - Per-session cost circuit breaker (`MAX_SESSION_COST_USD`).

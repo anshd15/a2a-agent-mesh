@@ -8,6 +8,7 @@ from a2a.types import AgentCard
 from google.adk.agents import Agent
 from google.adk.agents.remote_a2a_agent import AGENT_CARD_WELL_KNOWN_PATH, RemoteA2aAgent
 from google.adk.models.base_llm import BaseLlm
+from google.adk.tools.agent_tool import AgentTool
 
 from mesh.common.a2a_server import build_card
 from mesh.config import A2A_TIMEOUT_S, MAX_SESSION_COST_USD, MESH_TOKEN, MODEL
@@ -83,18 +84,23 @@ def build_planner(
             "forget_preferences.\n"
             f"Specialists you can delegate to:\n{roster}\n"
             "If the budget is given in another currency, convert it to USD with "
-            "convert_currency before saving. Hand each part of the trip to the specialist "
-            "whose description fits. Call check_budget with every quoted cost and flag "
+            "convert_currency before saving. Call the specialist tools with a focused "
+            "request that includes the places, dates and interests they need; call "
+            "independent specialists together in one turn so they run in parallel. If a "
+            "specialist reports a failure, carry on without it and say which part is "
+            "missing. Call check_budget with every quoted cost and flag "
             "anything over budget, then call finalize_itinerary with the chosen items and "
             "present its markdown. If the traveller wants to book, call book_trip; they will "
             "be asked to approve before anything is booked."
         ),
+        # Specialists are tools, not sub-agents: the planner keeps control across
+        # delegations, fans out in parallel, and each specialist only sees the request.
         tools=[save_trip_preferences, check_budget, convert_currency, finalize_itinerary,
-               remember_preference, forget_preferences, book_trip_tool],
+               remember_preference, forget_preferences, book_trip_tool,
+               *(AgentTool(agent=remote(e, client_factory(e))) for e in registry)],
         before_model_callback=[cost_cap(cost_cap_usd), limit_input_length,
                                block_prompt_injection, redact_pii],
         after_model_callback=track_usage,
-        sub_agents=[remote(e, client_factory(e)) for e in registry],
     )
 
 

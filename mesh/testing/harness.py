@@ -70,6 +70,13 @@ def texts_by(events: list, author: str) -> list[str]:
             for p in e.content.parts or [] if p.text]
 
 
+
+def tool_results(events: list, name: str) -> list[dict]:
+    """Every function response the planner received from tool `name` (e.g. a specialist)."""
+    return [p.function_response.response for e in events if e.content
+            for p in e.content.parts or []
+            if p.function_response and p.function_response.name == name]
+
 class Conversation:
     """Several turns and sessions against one runner, so session and `user:` state persist."""
 

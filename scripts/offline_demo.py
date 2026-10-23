@@ -13,7 +13,7 @@ from mesh.agents import flights, hotels
 from mesh.data.inventory import flight_options, hotel_options
 from mesh.orchestrator.agent import build_planner
 from mesh.orchestrator.itinerary import Itinerary, render_markdown
-from mesh.testing.harness import Conversation, FakeMesh, texts_by
+from mesh.testing.harness import Conversation, FakeMesh, texts_by, tool_results
 from mesh.testing.scripted_llm import ScriptedLlm, call, say
 
 # The itinerary uses the same seeded options the specialists return in scene 2.
@@ -55,12 +55,16 @@ async def run_demo() -> str:
 
     scene("2. Delegation over A2A, with PII masked on the wire")
     mesh = offline_mesh()
-    convo, _ = chat(mesh, [call("transfer_to_agent", agent_name="flights_agent")])
+    convo, _ = chat(mesh, [
+        call("flights_agent",
+             request="Flights from Mumbai to Goa on 2026-12-20, email me at me@example.com"),
+        say("Here are your flights."),
+    ])
     events = await convo.send("Flights from Mumbai to Goa on 2026-12-20, email me at me@example.com")
     sent = mesh.received["flights_agent"][0]
     first_line = sent[sent.find("Flights"):].splitlines()[0]
     out.append(f"flights_agent received (masked): {first_line}")
-    out.append("flights_agent replied:\n" + texts_by(events, "flights_agent")[0])
+    out.append("flights_agent replied:\n" + tool_results(events, "flights_agent")[0]["result"])
 
     scene("3. Itinerary, then booking only after human approval")
     convo, _ = chat(offline_mesh(), [call("finalize_itinerary", destination="Goa", items=ITEMS),

@@ -36,3 +36,10 @@ def say(text: str) -> LlmResponse:
     """A final text answer."""
     return LlmResponse(content=types.Content(role="model", parts=[types.Part(text=text)]),
                        usage_metadata=USAGE)
+
+
+def call_many(*calls: tuple[str, dict]) -> LlmResponse:
+    """A model turn with several tool calls, which ADK runs in parallel."""
+    parts = [types.Part(function_call=types.FunctionCall(name=name, args=args))
+             for name, args in calls]
+    return LlmResponse(content=types.Content(role="model", parts=parts), usage_metadata=USAGE)

@@ -55,3 +55,34 @@ def hotel_options(city: str, check_in: str, nights: int) -> list[dict]:
             "total_usd": nightly * nights,
         })
     return sorted(options, key=lambda o: o["rating"] / o["nightly_usd"], reverse=True)
+
+
+# (name template, interest tag, hours, typical USD)
+ACTIVITIES = [
+    ("{city} old town walking tour", "culture", 3, 15),
+    ("Street food crawl in {city}", "food", 3, 25),
+    ("Sunset cruise off {city}", "beaches", 2, 40),
+    ("{city} museum pass", "museums", 4, 20),
+    ("Day hike near {city}", "nature", 6, 30),
+    ("Cooking class in {city}", "food", 3, 45),
+    ("Beach day with water sports in {city}", "beaches", 5, 35),
+    ("Temple and heritage trail in {city}", "temples", 4, 10),
+]
+
+
+def activity_options(city: str, interests: str, count: int = 4) -> list[dict]:
+    """Priced activities, those matching the traveller's interests first, then cheapest."""
+    rng = _rng("activity", city)
+    wanted = [w.strip().lower() for w in interests.split(",") if w.strip()]
+    options = []
+    for template, tag, hours, typical in ACTIVITIES:
+        options.append({
+            "name": template.format(city=city.strip().title()),
+            "tag": tag,
+            "hours": hours,
+            "price_usd": round(typical * rng.uniform(0.8, 1.3)),
+            # "seafood" matches the food tag, "beach" matches beaches.
+            "matches": any(tag in w or w in tag for w in wanted),
+        })
+    options.sort(key=lambda o: (not o["matches"], o["price_usd"]))
+    return options[:count]

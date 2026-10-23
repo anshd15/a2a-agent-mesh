@@ -23,9 +23,10 @@ def test_hotel_listing_shows_stay_total():
     assert listing.startswith("1. ") and "for 3 nights" in listing
 
 
-def test_find_activities_one_idea_per_interest():
-    out = find_activities("Goa", "beaches, food")
-    assert len(out["ideas"]) == 2
+def test_find_activities_returns_priced_interest_matches():
+    out = find_activities("Goa", "beaches, seafood")
+    assert len(out["activities"]) == 4
+    assert all(a["matches"] and a["price_usd"] > 0 for a in out["activities"])
 
 
 def test_budget_flow_uses_session_state():

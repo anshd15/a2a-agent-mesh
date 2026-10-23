@@ -8,14 +8,15 @@ from google.adk.agents import Agent
 from mesh.common.a2a_server import health_route
 from mesh.common.auth import protect
 from mesh.config import ACTIVITIES_PORT, ACTIVITIES_URL, HOST, MESH_TOKEN, MODEL
+from mesh.data.inventory import activity_options
 from mesh.telemetry import setup_tracing
 
 
 def find_activities(city: str, interests: str) -> dict:
-    """Suggest activities in a city matching comma-separated interests."""
-    # TODO: back with Google Places / Search grounding
-    ideas = [f"{i.strip().title()} tour in {city}" for i in interests.split(",")]
-    return {"city": city, "ideas": ideas}
+    """Suggest priced activities in a city; best matches for the comma-separated interests
+    come first, each with its duration in hours."""
+    # Deterministic mock inventory; swap for Google Places / Search grounding.
+    return {"city": city, "activities": activity_options(city, interests)}
 
 
 root_agent = Agent(

@@ -1,4 +1,4 @@
-from mesh.data.inventory import flight_options, hotel_options
+from mesh.data.inventory import activity_options, flight_options, hotel_options
 
 
 def test_flights_are_deterministic_and_normalised():
@@ -26,3 +26,17 @@ def test_hotel_totals_cover_every_night():
 def test_hotels_rank_by_value():
     values = [h["rating"] / h["nightly_usd"] for h in hotel_options("Goa", "2026-12-20", 2)]
     assert values == sorted(values, reverse=True)
+
+
+def test_activities_put_interest_matches_first_then_cheapest():
+    options = activity_options("Goa", "museums, nature", count=8)
+    matched = [o for o in options if o["matches"]]
+    assert {o["tag"] for o in matched} == {"museums", "nature"}
+    assert options[: len(matched)] == matched
+    rest = [o["price_usd"] for o in options[len(matched):]]
+    assert rest == sorted(rest)
+
+
+def test_activities_are_deterministic_per_city():
+    assert activity_options("Goa", "food") == activity_options(" goa ", "food")
+    assert activity_options("Goa", "food") != activity_options("Kochi", "food")

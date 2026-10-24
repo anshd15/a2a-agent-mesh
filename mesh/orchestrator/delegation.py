@@ -1,4 +1,4 @@
-"""Per-session delegation stats: how often each specialist was called, failed or degraded.
+"""Per-session delegation stats: calls, failures, quarantined and degraded answers.
 
 Kept in session state under "delegations", so a slow or flaky specialist is visible per
 conversation (and to evals) without digging through traces.
@@ -8,6 +8,8 @@ from typing import Any
 
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.tool_context import ToolContext
+
+from mesh.orchestrator.tool_guard import looks_injected, response_text
 
 # What a failed delegation looks like in the tool result: ADK RemoteA2aAgent's error
 # texts, and the readable error reply from our own A2A executor.
@@ -26,12 +28,15 @@ def delegation_tracker(specialists: set[str]) -> Callable[..., dict | None]:
                tool_response: Any) -> dict | None:
         if tool.name not in specialists:
             return None
-        text = str(tool_response)
+        text = response_text(tool_response)
         stats = dict(tool_context.state.get("delegations") or {})
-        entry = dict(stats.get(tool.name) or {"calls": 0, "failures": 0, "degraded": 0})
+        entry = {"calls": 0, "failures": 0, "quarantined": 0, "degraded": 0,
+                 **(stats.get(tool.name) or {})}
         entry["calls"] += 1
         if any(marker in text for marker in FAILURE_MARKERS):
             entry["failures"] += 1
+        elif looks_injected(text):
+            entry["quarantined"] += 1  # the injection guard withholds this reply
         elif DEGRADED_MARKER in text:
             entry["degraded"] += 1
         stats[tool.name] = entry

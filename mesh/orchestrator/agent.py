@@ -19,6 +19,7 @@ from mesh.orchestrator.guardrails import block_prompt_injection, limit_input_len
 from mesh.orchestrator.itinerary import finalize_itinerary
 from mesh.orchestrator.memory import forget_preferences, remember_preference
 from mesh.orchestrator.outbound import outbound_client
+from mesh.orchestrator.tool_guard import injection_guard
 from mesh.orchestrator.tools import check_budget, save_trip_preferences
 from mesh.orchestrator.usage import cost_cap, track_usage
 from mesh.registry import AgentEntry, load_registry
@@ -71,6 +72,7 @@ def build_planner(
     registry = load_registry() if registry is None else registry
     client_factory = client_factory or (lambda entry: outbound_client(A2A_TIMEOUT_S, MESH_TOKEN))
     roster = "\n".join(f"- {e.name}: {e.description}" for e in registry)
+    specialists = {e.name for e in registry}
     return Agent(
         name="trip_planner",
         model=model,
@@ -102,7 +104,9 @@ def build_planner(
         before_model_callback=[cost_cap(cost_cap_usd), limit_input_length,
                                block_prompt_injection, redact_pii],
         after_model_callback=track_usage,
-        after_tool_callback=delegation_tracker({e.name for e in registry}),
+        # Order matters: ADK stops at the first callback that returns a value, so the
+        # observe-only tracker runs before the guard that may replace the reply.
+        after_tool_callback=[delegation_tracker(specialists), injection_guard(specialists)],
     )
 
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0
+- Indirect prompt-injection guard: specialist replies that try to issue instructions or call the planner's tools are quarantined before the model reads them; delegation stats gain a `quarantined` count.
+- Fix: PII masking now covers tool results (function responses), not only text parts.
+- The ADK activities agent runs inside the shared A2A wrapper (no more `to_a2a`), gaining cache, retries, auth, metrics and a rule-based fallback.
+- Prometheus `/metrics` on every specialist (outcomes and latency), token-protected.
+- Planner prompt moved to a versioned file; `prompt_version` recorded per session and in judge reports.
+- Red-team set extended with specialist-output (indirect) injection cases; demo scene for a compromised specialist. 126 offline tests.
+
 ## 0.8.0
 - The planner calls specialists as ADK `AgentTool`s instead of `transfer_to_agent`: it keeps control of the turn, fans out in parallel and sends each specialist only a focused request.
 - Seeded activities inventory with prices, durations and interest matching.

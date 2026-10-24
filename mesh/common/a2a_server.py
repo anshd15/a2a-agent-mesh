@@ -21,6 +21,7 @@ from starlette.routing import Route
 
 from mesh.common.auth import protect
 from mesh.common.cache import TTLCache
+from mesh.common.metrics import SpecialistMetrics, metrics_route
 from mesh.common.retry import retry_async
 from mesh.config import MAX_CONCURRENCY, MESH_TOKEN, RETRY_ATTEMPTS, SPECIALIST_CACHE_TTL_S
 
@@ -42,12 +43,14 @@ class FnExecutor(AgentExecutor):
         self.cache = TTLCache(cache_ttl_s)
         self.slots = asyncio.Semaphore(max_concurrency)
         self.retry_attempts = retry_attempts
+        self.metrics = SpecialistMetrics(name)
 
-    async def _answer(self, query: str, span: trace.Span) -> str:
+    async def _answer(self, query: str, span: trace.Span) -> tuple[str, str]:
+        """Return (reply, outcome) where outcome is ok / cache_hit / degraded / error."""
         cached = self.cache.get(query)
         span.set_attribute("a2a.cache_hit", cached is not None)
         if cached is not None:
-            return cached
+            return cached, "cache_hit"
         try:
             async with self.slots:
                 # Transient errors (timeouts, resets) get jittered retries before giving up.
@@ -63,14 +66,14 @@ class FnExecutor(AgentExecutor):
                 try:
                     reply = await self.fallback(query)
                     span.set_attribute("a2a.fallback", True)
-                    return f"[degraded mode] {reply}"
+                    return f"[degraded mode] {reply}", "degraded"
                 except Exception:
                     logger.exception("%s fallback failed", self.name)
             # A reply (not a failed task) lets the orchestrator plan around the gap.
             return (f"{self.name} could not complete this request "
-                    f"({type(exc).__name__}). Continue without it or try again.")
+                    f"({type(exc).__name__}). Continue without it or try again."), "error"
         self.cache.put(query, reply)  # only successful answers are cached
-        return reply
+        return reply, "ok"
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         # Continue the caller's trace if it sent W3C traceparent headers.
@@ -81,11 +84,14 @@ class FnExecutor(AgentExecutor):
         ) as span:
             query = context.get_user_input()
             started = time.perf_counter()
-            reply = await self._answer(query, span)
+            reply, outcome = await self._answer(query, span)
+            elapsed = time.perf_counter() - started
+            self.metrics.observe(outcome, elapsed)
             span.set_attribute("a2a.agent", self.name)
+            span.set_attribute("a2a.outcome", outcome)
             span.set_attribute("a2a.input_chars", len(query))
             span.set_attribute("a2a.output_chars", len(reply))
-            span.set_attribute("a2a.latency_ms", round((time.perf_counter() - started) * 1000))
+            span.set_attribute("a2a.latency_ms", round(elapsed * 1000))
         await event_queue.enqueue_event(
             new_text_message(reply, context_id=context.context_id, task_id=context.task_id)
         )
@@ -123,9 +129,10 @@ def build_app(card: AgentCard, handler: Handler,
               max_concurrency: int = MAX_CONCURRENCY,
               token: str | None = MESH_TOKEN,
               fallback: Handler | None = None) -> Starlette:
+    executor = FnExecutor(card.name, handler, cache_ttl_s=cache_ttl_s,
+                          max_concurrency=max_concurrency, fallback=fallback)
     request_handler = DefaultRequestHandler(
-        agent_executor=FnExecutor(card.name, handler, cache_ttl_s=cache_ttl_s,
-                                  max_concurrency=max_concurrency, fallback=fallback),
+        agent_executor=executor,
         task_store=InMemoryTaskStore(),
         agent_card=card,
     )
@@ -135,6 +142,7 @@ def build_app(card: AgentCard, handler: Handler,
             # v0.3 compat keeps clients that still speak "message/send" working.
             *create_jsonrpc_routes(request_handler, "/", enable_v0_3_compat=True),
             health_route(card.name),
+            metrics_route(executor.metrics),
         ]
     )
     return protect(app, token)

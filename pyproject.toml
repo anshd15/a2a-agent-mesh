@@ -12,6 +12,7 @@ dependencies = [
   "uvicorn>=0.30",
   "python-dotenv>=1.0",
   "opentelemetry-sdk>=1.25",
+  "prometheus-client>=0.20",
 ]
 
 [project.scripts]

@@ -7,7 +7,7 @@ Quality is measured in layers, cheapest and most deterministic first.
 | Offline end-to-end | Scripted planner -> real A2A JSON-RPC -> specialist: state, delegation, usage, PII masked on the wire, injection short-circuit, pinned cards, token rejection, degraded mode, cost cap, approval before booking, memory across sessions, a whole trip in one turn with parallel fan-out, data minimisation, delegation stats | No | `pytest tests/test_e2e*.py tests/test_booking.py tests/test_memory.py tests/test_cost_cap.py` |
 | Offline demo | The same paths, narrated, as a smoke-tested script | No | `make demo` |
 | Unit + protocol tests | Tools, inventory, executor (cache, retry, concurrency, errors), A2A HTTP round trip | No | `pytest -q` |
-| Red-team set | Injection block rate, benign false positives, PII labels, documented gaps | No | `pytest tests/test_redteam.py` |
+| Red-team set | Direct and indirect (specialist-output) injection, benign false positives, PII labels, documented gaps | No | `pytest tests/test_redteam.py` |
 | `adk eval` | Tool trajectory and response match on fixed cases | Yes | `make eval` |
 | LLM-as-judge | Completeness, budget adherence, coherence, grounding (1-5) over 6 scenarios | Yes | `python eval/judge.py --runs 3` |
 | Delegation coverage | Share of specialists the planner actually called (deterministic) | Yes | reported by the judge |

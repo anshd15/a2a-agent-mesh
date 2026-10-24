@@ -19,6 +19,7 @@ from google.genai import types
 from pydantic import BaseModel, Field
 
 from mesh.config import MODEL
+from mesh.orchestrator.prompts import load_prompt
 
 HERE = Path(__file__).parent
 CRITERIA = ("completeness", "budget_adherence", "coherence", "grounding")
@@ -122,7 +123,8 @@ async def main(runs: int) -> None:
             score = await judge(client, scenario["prompt"], itinerary)
             results.append(Result(label, score, authors))
             print(label, score.model_dump(exclude={"rationale"}), sorted(authors))
-    report = (f"# Itinerary quality (LLM-as-judge, {MODEL}, {runs} run(s) per scenario)\n\n"
+    report = (f"# Itinerary quality (LLM-as-judge, {MODEL}, prompt "
+              f"{load_prompt('planner').tag}, {runs} run(s) per scenario)\n\n"
               + summarise(results) + "\n")
     (HERE / "results.md").write_text(report)
     print(report)

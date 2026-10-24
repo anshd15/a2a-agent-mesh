@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 import httpx
 from a2a.types import AgentCard
 from google.adk.agents import Agent
+from google.adk.agents.callback_context import CallbackContext
 from google.adk.agents.remote_a2a_agent import AGENT_CARD_WELL_KNOWN_PATH, RemoteA2aAgent
 from google.adk.models.base_llm import BaseLlm
 from google.adk.tools.agent_tool import AgentTool
@@ -19,6 +20,7 @@ from mesh.orchestrator.guardrails import block_prompt_injection, limit_input_len
 from mesh.orchestrator.itinerary import finalize_itinerary
 from mesh.orchestrator.memory import forget_preferences, remember_preference
 from mesh.orchestrator.outbound import outbound_client
+from mesh.orchestrator.prompts import load_prompt
 from mesh.orchestrator.tool_guard import injection_guard
 from mesh.orchestrator.tools import check_budget, save_trip_preferences
 from mesh.orchestrator.usage import cost_cap, track_usage
@@ -62,6 +64,14 @@ def remote(entry: AgentEntry, client: httpx.AsyncClient) -> RemoteA2aAgent:
     )
 
 
+PLANNER_PROMPT = load_prompt("planner")
+
+
+def stamp_prompt_version(callback_context: CallbackContext) -> None:
+    """Record which prompt version produced this session, so evals can compare versions."""
+    callback_context.state["prompt_version"] = PLANNER_PROMPT.tag
+
+
 def build_planner(
     model: str | BaseLlm = MODEL,
     registry: list[AgentEntry] | None = None,
@@ -77,25 +87,8 @@ def build_planner(
         name="trip_planner",
         model=model,
         description="Plans complete trips by coordinating specialist agents.",
-        instruction=(
-            "You plan trips. First collect origin, destination, dates, budget and interests, "
-            "then call save_trip_preferences.\n"
-            "Current trip brief: {trip?}\n"
-            "Traveller preferences from earlier trips: {user:preferences?}\n"
-            "When the traveller states a lasting preference (seat, diet, hotel style), "
-            "call remember_preference; if they ask you to forget them, call "
-            "forget_preferences.\n"
-            f"Specialists you can delegate to:\n{roster}\n"
-            "If the budget is given in another currency, convert it to USD with "
-            "convert_currency before saving. Call the specialist tools with a focused "
-            "request that includes the places, dates and interests they need; call "
-            "independent specialists together in one turn so they run in parallel. If a "
-            "specialist reports a failure, carry on without it and say which part is "
-            "missing. Call check_budget with every quoted cost and flag "
-            "anything over budget, then call finalize_itinerary with the chosen items and "
-            "present its markdown. If the traveller wants to book, call book_trip; they will "
-            "be asked to approve before anything is booked."
-        ),
+        instruction=PLANNER_PROMPT.render(roster=roster),
+        before_agent_callback=stamp_prompt_version,
         # Specialists are tools, not sub-agents: the planner keeps control across
         # delegations, fans out in parallel, and each specialist only sees the request.
         tools=[save_trip_preferences, check_budget, convert_currency, finalize_itinerary,

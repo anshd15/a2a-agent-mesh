@@ -28,6 +28,17 @@ def redact(text: str) -> str:
     return text
 
 
+def redact_value(value):
+    """redact() every string inside a JSON-like value (tool results, function responses)."""
+    if isinstance(value, str):
+        return redact(value)
+    if isinstance(value, dict):
+        return {k: redact_value(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [redact_value(v) for v in value]
+    return value
+
+
 def _latest_user_text(llm_request: LlmRequest) -> str | None:
     last = llm_request.contents[-1] if llm_request.contents else None
     if last is None or last.role != "user":
@@ -60,9 +71,15 @@ def block_prompt_injection(
 
 
 def redact_pii(callback_context: CallbackContext, llm_request: LlmRequest) -> LlmResponse | None:
-    """Mask card numbers, emails and phone numbers before they reach the model."""
+    """Mask card numbers, emails and phone numbers before they reach the model.
+
+    Covers tool results too: a specialist reply (or any function response) is just as
+    much model input as the traveller's own message.
+    """
     for content in llm_request.contents:
         for part in content.parts or []:
             if part.text:
                 part.text = redact(part.text)
+            if part.function_response and part.function_response.response:
+                part.function_response.response = redact_value(part.function_response.response)
     return None

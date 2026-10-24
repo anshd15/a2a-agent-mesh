@@ -37,3 +37,16 @@ def test_known_gaps_are_documented():
     """Regex guardrails miss these; if one starts being blocked, promote it to 'block'."""
     gaps = [c["text"] for c in CASES if c["expect"] == "known_gap"]
     assert gaps and not [t for t in gaps if blocked(t)]
+
+
+def test_tool_output_attacks_are_quarantined_and_travel_data_passes():
+    from mesh.orchestrator.tool_guard import looks_injected
+
+    outputs = [c for c in CASES if c["kind"] == "tool_output"]
+    misses = [c["text"] for c in outputs if c["expect"] == "quarantine" and not looks_injected(c["text"])]
+    false_alarms = [c["text"] for c in outputs if c["expect"] == "allow" and looks_injected(c["text"])]
+    gaps = [c["text"] for c in outputs if c["expect"] == "known_gap"]
+    assert not misses, misses
+    assert not false_alarms, false_alarms
+    # Social-engineering without instruction keywords still gets through; documented, not hidden.
+    assert gaps and not [t for t in gaps if looks_injected(t)]

@@ -16,6 +16,8 @@ async def test_demo_shows_every_scene_working():
     assert "approval requested; booked yet? False" in output
     assert "traveller approved -> booking MESH-" in output
     assert "[degraded mode]" in output and "'degraded': 1" in output
+    assert "reply was withheld" in output
+    assert "booked anything? False; quarantined: 1" in output
     assert "in the planner's instructions: True" in output
 
 

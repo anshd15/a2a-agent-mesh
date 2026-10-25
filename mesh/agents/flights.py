@@ -54,7 +54,10 @@ card = build_card(
     "Finds and compares flights (LangGraph).",
     FLIGHTS_URL,
     [AgentSkill(id="search_flights", name="Search flights",
-                description="Find flights between two cities", tags=["travel", "flights"])],
+                description="Find flights between two cities on a date, cheapest first",
+                tags=["travel", "flights"],
+                examples=["Flights from Mumbai to Goa on 2026-12-20",
+                          "Cheapest flight Delhi to Tokyo on 2027-03-28"])],
 )
 app = build_app(card, handle, fallback=fallback)
 

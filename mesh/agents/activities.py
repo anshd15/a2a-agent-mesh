@@ -71,7 +71,9 @@ card = build_card(
     ACTIVITIES_URL,
     [AgentSkill(id="find_activities", name="Find activities",
                 description="Priced activities matching the traveller's interests",
-                tags=["travel", "activities"])],
+                tags=["travel", "activities"],
+                examples=["Things to do in Goa for beaches and food",
+                          "Museums and food in Paris"])],
 )
 app = build_app(card, handle, fallback=fallback)
 

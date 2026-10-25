@@ -1,5 +1,6 @@
 """Wrap an agent from any framework as an A2A server (a2a-sdk 1.x)."""
 import asyncio
+import importlib.metadata
 import logging
 import time
 from collections.abc import Awaitable, Callable
@@ -10,7 +11,13 @@ from a2a.server.events import EventQueue
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.routes import create_agent_card_routes, create_jsonrpc_routes
 from a2a.server.tasks import InMemoryTaskStore
-from a2a.types import AgentCapabilities, AgentCard, AgentInterface, AgentSkill
+from a2a.types import (
+    AgentCapabilities,
+    AgentCard,
+    AgentInterface,
+    AgentProvider,
+    AgentSkill,
+)
 from a2a.utils import AGENT_CARD_WELL_KNOWN_PATH
 from opentelemetry import propagate, trace
 from opentelemetry.trace import Status, StatusCode
@@ -33,6 +40,11 @@ from mesh.config import (
 
 Handler = Callable[[str], Awaitable[str]]
 tracer = trace.get_tracer("mesh.a2a")
+DOCS_URL = "https://github.com/anshd15/a2a-agent-mesh#readme"
+try:  # cards advertise the installed release, so clients can tell versions apart
+    PACKAGE_VERSION = importlib.metadata.version("a2a-agent-mesh")
+except importlib.metadata.PackageNotFoundError:
+    PACKAGE_VERSION = "0.0.0+local"
 logger = logging.getLogger(__name__)
 
 
@@ -115,7 +127,9 @@ def build_card(name: str, description: str, url: str, skills: list[AgentSkill]) 
     return AgentCard(
         name=name,
         description=description,
-        version="0.1.0",
+        version=PACKAGE_VERSION,
+        documentation_url=DOCS_URL,
+        provider=AgentProvider(organization="a2a-agent-mesh", url=DOCS_URL),
         supported_interfaces=[
             AgentInterface(url=url.rstrip("/"), protocol_binding="JSONRPC", protocol_version="1.0")
         ],

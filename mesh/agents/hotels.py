@@ -61,7 +61,10 @@ card = build_card(
     "Finds best-value hotels (CrewAI).",
     HOTELS_URL,
     [AgentSkill(id="search_hotels", name="Search hotels",
-                description="Find hotels for given dates", tags=["travel", "hotels"])],
+                description="Best-value hotels for given dates, priced for the whole stay",
+                tags=["travel", "hotels"],
+                examples=["Hotels in Goa from 2026-12-20 for 3 nights",
+                          "Hotels in Paris, 2027-05-10 to 2027-05-13"])],
 )
 app = build_app(card, handle, fallback=fallback)
 

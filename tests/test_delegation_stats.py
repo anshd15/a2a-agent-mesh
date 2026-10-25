@@ -27,8 +27,10 @@ async def test_healthy_degraded_and_failed_delegations_are_tallied():
     _, state = await run_planner(planner, "Plan Goa")
 
     assert state["delegations"] == {
-        "flights_agent": {"calls": 1, "failures": 0, "quarantined": 0, "degraded": 1},
-        "hotels_agent": {"calls": 1, "failures": 1, "quarantined": 0, "degraded": 0},
+        "flights_agent": {"calls": 1, "failures": 0, "quarantined": 0, "degraded": 1,
+                          "short_circuited": 0},
+        "hotels_agent": {"calls": 1, "failures": 1, "quarantined": 0, "degraded": 0,
+                         "short_circuited": 0},
     }
 
 

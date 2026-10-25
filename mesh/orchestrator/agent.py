@@ -14,6 +14,7 @@ from google.adk.tools.agent_tool import AgentTool
 from mesh.common.a2a_server import build_card
 from mesh.config import A2A_TIMEOUT_S, MAX_SESSION_COST_USD, MESH_TOKEN, MODEL
 from mesh.orchestrator.booking import book_trip_tool
+from mesh.orchestrator.breaker import CircuitBreaker
 from mesh.orchestrator.currency import convert_currency
 from mesh.orchestrator.delegation import delegation_tracker
 from mesh.orchestrator.guardrails import block_prompt_injection, limit_input_length, redact_pii
@@ -77,12 +78,15 @@ def build_planner(
     registry: list[AgentEntry] | None = None,
     client_factory: ClientFactory | None = None,
     cost_cap_usd: float = MAX_SESSION_COST_USD,
+    breaker: CircuitBreaker | None = None,
 ) -> Agent:
-    """Build the trip planner; tests inject a scripted model, registry and in-process clients."""
+    """Build the trip planner; tests inject a scripted model, registry, in-process clients
+    and a circuit breaker with a fake clock."""
     registry = load_registry() if registry is None else registry
     client_factory = client_factory or (lambda entry: outbound_client(A2A_TIMEOUT_S, MESH_TOKEN))
     roster = "\n".join(f"- {e.name}: {e.description}" for e in registry)
     specialists = {e.name for e in registry}
+    breaker = breaker or CircuitBreaker(specialists)
     return Agent(
         name="trip_planner",
         model=model,
@@ -97,9 +101,11 @@ def build_planner(
         before_model_callback=[cost_cap(cost_cap_usd), limit_input_length,
                                block_prompt_injection, redact_pii],
         after_model_callback=track_usage,
+        before_tool_callback=breaker.before_tool,
         # Order matters: ADK stops at the first callback that returns a value, so the
-        # observe-only tracker runs before the guard that may replace the reply.
-        after_tool_callback=[delegation_tracker(specialists), injection_guard(specialists)],
+        # observe-only tracker and breaker run before the guard that may replace the reply.
+        after_tool_callback=[delegation_tracker(specialists), breaker.after_tool,
+                             injection_guard(specialists)],
     )
 
 

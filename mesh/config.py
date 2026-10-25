@@ -38,3 +38,8 @@ MESH_TOKEN = os.getenv("MESH_TOKEN") or None
 
 # Per-session spend cap for the planner's model calls, in USD (0 disables).
 MAX_SESSION_COST_USD = float(os.getenv("MAX_SESSION_COST_USD", "0.50"))
+
+# Planner-side circuit breaker: consecutive failed delegations before a specialist is
+# skipped, and how long it is skipped before one trial call is let through.
+BREAKER_THRESHOLD = int(os.getenv("BREAKER_THRESHOLD", "3"))
+BREAKER_COOLDOWN_S = float(os.getenv("BREAKER_COOLDOWN_S", "30"))

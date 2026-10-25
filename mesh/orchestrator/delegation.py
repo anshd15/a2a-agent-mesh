@@ -31,9 +31,11 @@ def delegation_tracker(specialists: set[str]) -> Callable[..., dict | None]:
         text = response_text(tool_response)
         stats = dict(tool_context.state.get("delegations") or {})
         entry = {"calls": 0, "failures": 0, "quarantined": 0, "degraded": 0,
-                 **(stats.get(tool.name) or {})}
+                 "short_circuited": 0, **(stats.get(tool.name) or {})}
         entry["calls"] += 1
-        if any(marker in text for marker in FAILURE_MARKERS):
+        if isinstance(tool_response, dict) and tool_response.get("circuit_open"):
+            entry["short_circuited"] += 1  # answered by the circuit breaker, never sent
+        elif any(marker in text for marker in FAILURE_MARKERS):
             entry["failures"] += 1
         elif looks_injected(text):
             entry["quarantined"] += 1  # the injection guard withholds this reply

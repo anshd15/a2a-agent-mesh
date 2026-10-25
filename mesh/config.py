@@ -43,3 +43,6 @@ MAX_SESSION_COST_USD = float(os.getenv("MAX_SESSION_COST_USD", "0.50"))
 # skipped, and how long it is skipped before one trial call is let through.
 BREAKER_THRESHOLD = int(os.getenv("BREAKER_THRESHOLD", "3"))
 BREAKER_COOLDOWN_S = float(os.getenv("BREAKER_COOLDOWN_S", "30"))
+
+# Longest specialist reply the planner's model will see (chars, 0 disables the cap).
+MAX_TOOL_REPLY_CHARS = int(os.getenv("MAX_TOOL_REPLY_CHARS", "6000"))

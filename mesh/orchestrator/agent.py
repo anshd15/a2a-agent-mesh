@@ -22,6 +22,7 @@ from mesh.orchestrator.itinerary import finalize_itinerary
 from mesh.orchestrator.memory import forget_preferences, remember_preference
 from mesh.orchestrator.outbound import outbound_client
 from mesh.orchestrator.prompts import load_prompt
+from mesh.orchestrator.reply_cap import reply_cap
 from mesh.orchestrator.tool_guard import injection_guard
 from mesh.orchestrator.tools import check_budget, save_trip_preferences
 from mesh.orchestrator.usage import cost_cap, track_usage
@@ -105,7 +106,7 @@ def build_planner(
         # Order matters: ADK stops at the first callback that returns a value, so the
         # observe-only tracker and breaker run before the guard that may replace the reply.
         after_tool_callback=[delegation_tracker(specialists), breaker.after_tool,
-                             injection_guard(specialists)],
+                             injection_guard(specialists), reply_cap(specialists)],
     )
 
 

@@ -23,7 +23,13 @@ from mesh.common.auth import protect
 from mesh.common.cache import TTLCache
 from mesh.common.metrics import SpecialistMetrics, metrics_route
 from mesh.common.retry import retry_async
-from mesh.config import MAX_CONCURRENCY, MESH_TOKEN, RETRY_ATTEMPTS, SPECIALIST_CACHE_TTL_S
+from mesh.config import (
+    HANDLER_TIMEOUT_S,
+    MAX_CONCURRENCY,
+    MESH_TOKEN,
+    RETRY_ATTEMPTS,
+    SPECIALIST_CACHE_TTL_S,
+)
 
 Handler = Callable[[str], Awaitable[str]]
 tracer = trace.get_tracer("mesh.a2a")
@@ -36,10 +42,12 @@ class FnExecutor(AgentExecutor):
     def __init__(self, name: str, handler: Handler, cache_ttl_s: float = 0.0,
                  max_concurrency: int = MAX_CONCURRENCY,
                  retry_attempts: int = RETRY_ATTEMPTS,
-                 fallback: Handler | None = None):
+                 fallback: Handler | None = None,
+                 timeout_s: float | None = HANDLER_TIMEOUT_S):
         self.name = name
         self.handler = handler
         self.fallback = fallback
+        self.timeout_s = timeout_s or None  # 0 / None: no per-request limit
         self.cache = TTLCache(cache_ttl_s)
         self.slots = asyncio.Semaphore(max_concurrency)
         self.retry_attempts = retry_attempts
@@ -53,9 +61,12 @@ class FnExecutor(AgentExecutor):
             return cached, "cache_hit"
         try:
             async with self.slots:
-                # Transient errors (timeouts, resets) get jittered retries before giving up.
-                reply = await retry_async(lambda: self.handler(query),
-                                          attempts=self.retry_attempts)
+                # A hung LLM call is cancelled at timeout_s; the TimeoutError is transient, so
+                # it gets the same jittered retries as dropped connections, then the fallback.
+                reply = await retry_async(
+                    lambda: asyncio.wait_for(self.handler(query), self.timeout_s),
+                    attempts=self.retry_attempts,
+                )
         except Exception as exc:  # any framework failure becomes a readable reply
             logger.exception("%s failed", self.name)
             span.record_exception(exc)
@@ -128,9 +139,11 @@ def build_app(card: AgentCard, handler: Handler,
               cache_ttl_s: float = SPECIALIST_CACHE_TTL_S,
               max_concurrency: int = MAX_CONCURRENCY,
               token: str | None = MESH_TOKEN,
-              fallback: Handler | None = None) -> Starlette:
+              fallback: Handler | None = None,
+              timeout_s: float | None = HANDLER_TIMEOUT_S) -> Starlette:
     executor = FnExecutor(card.name, handler, cache_ttl_s=cache_ttl_s,
-                          max_concurrency=max_concurrency, fallback=fallback)
+                          max_concurrency=max_concurrency, fallback=fallback,
+                          timeout_s=timeout_s)
     request_handler = DefaultRequestHandler(
         agent_executor=executor,
         task_store=InMemoryTaskStore(),

@@ -29,6 +29,10 @@ MAX_CONCURRENCY = int(os.getenv("MAX_CONCURRENCY", "4"))
 # Attempts per request for transient errors (timeouts, dropped connections); 1 disables.
 RETRY_ATTEMPTS = int(os.getenv("RETRY_ATTEMPTS", "2"))
 
+# Per-request limit on a specialist handler (seconds, 0 disables); keep below A2A_TIMEOUT_S
+# so a hung LLM call is retried or degraded before the planner gives up on the specialist.
+HANDLER_TIMEOUT_S = float(os.getenv("HANDLER_TIMEOUT_S", "60"))
+
 # Shared bearer token between planner and specialists; unset disables auth (local dev).
 MESH_TOKEN = os.getenv("MESH_TOKEN") or None
 

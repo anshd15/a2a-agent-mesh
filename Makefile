@@ -1,7 +1,7 @@
 .RECIPEPREFIX = >
 # Sessions (trip brief, usage) persist across restarts in a local SQLite file.
 SESSION_DB_URI ?= sqlite+aiosqlite:///./sessions.db
-.PHONY: install agents web run check ping test lint typecheck eval judge up deploy demo
+.PHONY: install agents web run check ping test cov lint typecheck eval judge up deploy demo
 
 install:
 > pip install -e ".[dev,tracing]"
@@ -23,6 +23,9 @@ ping:
 
 test:
 > pytest -q
+
+cov:
+> pytest -q --cov --cov-report=term-missing
 
 lint:
 > ruff check .

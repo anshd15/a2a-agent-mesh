@@ -4,7 +4,7 @@ Fake specialists are served by the *real* A2A wrapper (auth, cache, retries, tra
 reached through the planner's real outbound client over httpx.ASGITransport - so the whole
 planner -> A2A JSON-RPC -> specialist path runs without sockets or an API key.
 """
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 
 import httpx
 from a2a.types import AgentSkill
@@ -26,12 +26,12 @@ LOOPBACK_URLS = {
 
 
 class FakeMesh:
-    def __init__(self, urls: dict[str, str] = LOOPBACK_URLS, token: str | None = TOKEN,
-                 handlers: dict[str, Handler] | None = None,
-                 fallbacks: dict[str, Handler] | None = None):
+    def __init__(self, urls: Mapping[str, str] = LOOPBACK_URLS, token: str | None = TOKEN,
+                 handlers: Mapping[str, Handler] | None = None,
+                 fallbacks: Mapping[str, Handler] | None = None):
         self.token = token
-        self.handlers = handlers or {}
-        self.fallbacks = fallbacks or {}
+        self.handlers = dict(handlers or {})
+        self.fallbacks = dict(fallbacks or {})
         self.received: dict[str, list[str]] = {name: [] for name in urls}
         self.registry = [AgentEntry(name, url, f"{name} specialist") for name, url in urls.items()]
         self.apps = {name: self._app(name, url) for name, url in urls.items()}
@@ -60,9 +60,10 @@ async def run_planner(planner: Agent, text: str) -> tuple[list, dict]:
     message = types.Content(role="user", parts=[types.Part(text=text)])
     events = [e async for e in runner.run_async(user_id="u", session_id=session.id,
                                                 new_message=message)]
-    session = await runner.session_service.get_session(app_name=runner.app_name, user_id="u",
-                                                       session_id=session.id)
-    return events, session.state
+    final = await runner.session_service.get_session(app_name=runner.app_name, user_id="u",
+                                                     session_id=session.id)
+    assert final is not None
+    return events, final.state
 
 
 def texts_by(events: list, author: str) -> list[str]:
@@ -70,12 +71,12 @@ def texts_by(events: list, author: str) -> list[str]:
             for p in e.content.parts or [] if p.text]
 
 
-
 def tool_results(events: list, name: str) -> list[dict]:
     """Every function response the planner received from tool `name` (e.g. a specialist)."""
     return [p.function_response.response for e in events if e.content
             for p in e.content.parts or []
             if p.function_response and p.function_response.name == name]
+
 
 class Conversation:
     """Several turns and sessions against one runner, so session and `user:` state persist."""
@@ -91,13 +92,18 @@ class Conversation:
         self.session_id = session.id
         return session.state
 
-    async def send(self, content: str | types.Content) -> list:
+    async def _session_id(self) -> str:
         if self.session_id is None:
             await self.new_session()
+        assert self.session_id is not None
+        return self.session_id
+
+    async def send(self, content: str | types.Content) -> list:
+        session_id = await self._session_id()
         if isinstance(content, str):
             content = types.Content(role="user", parts=[types.Part(text=content)])
         return [e async for e in self.runner.run_async(
-            user_id=self.user_id, session_id=self.session_id, new_message=content)]
+            user_id=self.user_id, session_id=session_id, new_message=content)]
 
     async def answer_confirmation(self, events: list, confirmed: bool) -> list:
         """Reply to the pending adk_request_confirmation found in `events`."""
@@ -110,5 +116,7 @@ class Conversation:
 
     async def state(self) -> dict:
         session = await self.runner.session_service.get_session(
-            app_name=self.runner.app_name, user_id=self.user_id, session_id=self.session_id)
+            app_name=self.runner.app_name, user_id=self.user_id,
+            session_id=await self._session_id())
+        assert session is not None
         return session.state

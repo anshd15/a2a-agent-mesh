@@ -42,7 +42,7 @@ def finalize_itinerary(destination: str, items: list[dict], tool_context: ToolCo
     "description": str, "cost_usd": float}. Present the returned markdown to the traveller.
     """
     try:
-        itinerary = Itinerary(destination=destination, items=items)
+        itinerary = Itinerary.model_validate({"destination": destination, "items": items})
     except ValidationError as exc:
         return {"status": "error", "message": exc.errors(include_url=False)}
     budget = (tool_context.state.get("trip") or {}).get("budget_usd")

@@ -1,7 +1,7 @@
 .RECIPEPREFIX = >
 # Sessions (trip brief, usage) persist across restarts in a local SQLite file.
 SESSION_DB_URI ?= sqlite+aiosqlite:///./sessions.db
-.PHONY: install agents web run check ping test lint eval judge up deploy demo
+.PHONY: install agents web run check ping test lint typecheck eval judge up deploy demo
 
 install:
 > pip install -e ".[dev,tracing]"
@@ -26,6 +26,9 @@ test:
 
 lint:
 > ruff check .
+
+typecheck:
+> mypy
 
 eval:
 > adk eval mesh/orchestrator eval/trip_planner.evalset.json --config_file_path eval/test_config.json --print_detailed_results

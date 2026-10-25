@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.0
+- Per-request handler timeout (`HANDLER_TIMEOUT_S`): hung LLM calls are cancelled, retried and degraded.
+- Planner-side circuit breaker per specialist (`BREAKER_THRESHOLD`, `BREAKER_COOLDOWN_S`) with half-open recovery; delegation stats count short-circuits.
+- Cap on specialist reply size (`MAX_TOOL_REPLY_CHARS`).
+- Agent cards advertise the release version, docs URL, provider and skill examples; every example is checked to be answerable.
+- Quality gates: mypy with zero errors (`make typecheck`) and a 90% branch-coverage gate (`make cov`, currently ~97%).
+- Architecture decision records in `docs/adr/`. 147 offline tests.
+
 ## 0.9.0
 - Indirect prompt-injection guard: specialist replies that try to issue instructions or call the planner's tools are quarantined before the model reads them; delegation stats gain a `quarantined` count.
 - Fix: PII masking now covers tool results (function responses), not only text parts.

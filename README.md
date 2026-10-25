@@ -20,7 +20,7 @@ flowchart LR
 | `hotels_agent` | CrewAI | 8002 | Find best-value hotels |
 | `activities_agent` | Google ADK | 8003 | Priced things to do |
 
-See [docs/architecture.md](docs/architecture.md) for the request sequence and design decisions, and [docs/evaluation.md](docs/evaluation.md) for how quality is measured.
+See [docs/architecture.md](docs/architecture.md) for the request sequence and design decisions, [docs/adr/](docs/adr/README.md) for the reasoning behind the big ones, and [docs/evaluation.md](docs/evaluation.md) for how quality is measured.
 
 ## What it demonstrates
 - **Parallel delegation with `AgentTool`** - the planner calls specialists as tools, so it keeps control of the turn, fans out to flights, hotels and activities in parallel (three 0.3s calls finish in ~0.3s in the demo) and sends each only a focused request - the conversation never leaves the planner.
@@ -31,7 +31,7 @@ See [docs/architecture.md](docs/architecture.md) for the request sequence and de
 - **Session state** - the trip brief lives in ADK state (`{trip?}` in the instruction), and budget maths is a deterministic tool, not LLM arithmetic.
 - **Structured output** - `finalize_itinerary` validates the plan with Pydantic, stores it in state and renders day-by-day markdown with the budget gap; budgets in INR, EUR and other currencies are converted by a deterministic tool, and trip dates are validated before saving.
 - **Cost tracking** - an `after_model_callback` records calls, tokens and estimated USD cost per session.
-- **Resilient specialists** - transient errors get jittered-backoff retries, an LLM outage degrades to rule-based answers from the inventory (`[degraded mode]`), other failures come back as readable replies (the planner works around the gap), identical queries hit a TTL cache, a semaphore caps concurrent LLM calls, and `/healthz` gates compose start-up.
+- **Resilient specialists** - a hung LLM call is cut off at `HANDLER_TIMEOUT_S`, transient errors get jittered-backoff retries, an LLM outage degrades to rule-based answers from the inventory (`[degraded mode]`), other failures come back as readable replies (the planner works around the gap), identical queries hit a TTL cache, a semaphore caps concurrent LLM calls, and `/healthz` gates compose start-up.
 - **Prometheus metrics** - every specialist exposes `/metrics` (token-protected): `a2a_requests_total{agent,outcome}` for ok / cache_hit / degraded / error and an `a2a_request_seconds` latency histogram.
 - **Versioned prompts** - the planner prompt is a reviewed file (`mesh/orchestrator/prompts/planner.md`); sessions and judge reports record `planner@<version>`.
 - **Distributed tracing** - the orchestrator forwards `traceparent` on every A2A call and each specialist continues the trace (cache hits and errors are tagged on the span); export via OTLP.
@@ -40,7 +40,9 @@ See [docs/architecture.md](docs/architecture.md) for the request sequence and de
 - **Offline end-to-end tests** - a scripted `BaseLlm` drives the real planner through real A2A JSON-RPC to specialists served in-process: brief saved, delegation, usage, PII masked on the wire, injection short-circuit, pinned cards and token rejection - no API key needed. Key tests are checked to fail when the feature they cover is disabled.
 - **Agent controls** - booking pauses for explicit approval (ADK `require_confirmation`; declining means it never runs), a per-session cost circuit breaker (`MAX_SESSION_COST_USD`), and traveller preferences remembered across trips in ADK `user:` state (with `forget_preferences`).
 - **Persistent sessions** - `make web` and compose store ADK sessions in SQLite, so trip briefs and usage survive restarts.
-- **Evals** - `adk eval` set; an LLM-as-judge over 6 scenarios with repeated runs (mean and stdev) plus a deterministic delegation-coverage metric; a red-team set covering direct and indirect injection; a load-test script with p50/p95/p99; 126 offline tests in CI, including end-to-end runs.
+- **Circuit breaker and context budget** - after 3 consecutive failed delegations the planner stops calling a specialist for a cooldown and answers instantly, then lets one trial through; oversized specialist replies are truncated before they reach the model.
+- **Quality gates** - ruff, `mypy` (check_untyped_defs, zero errors) and a 90% branch coverage gate (currently ~97%).
+- **Evals** - `adk eval` set; an LLM-as-judge over 6 scenarios with repeated runs (mean and stdev) plus a deterministic delegation-coverage metric; a red-team set covering direct and indirect injection; a load-test script with p50/p95/p99; 147 offline tests in CI, including end-to-end runs.
 - **Deployable** - one Docker image, `docker compose` locally, `deploy/cloudrun.sh` for Cloud Run.
 
 ## Try it in 10 seconds (no API key)
@@ -68,7 +70,7 @@ Check every agent card is reachable:
 python scripts/check_mesh.py      # exits non-zero if any agent is down
 ```
 
-Dev setup: `pre-commit install` runs ruff lint and format on every commit.
+Dev setup: `pre-commit install` runs ruff lint and format on every commit; `make typecheck` and `make cov` run mypy and the coverage gate.
 
 Run everything in containers:
 ```bash
@@ -82,7 +84,7 @@ PROJECT=my-project REGION=asia-south1 bash deploy/cloudrun.sh
 
 ## Tests and evals
 ```bash
-pytest -q                         # 126 offline tests, incl. end-to-end planner -> A2A -> specialist
+pytest -q                         # 147 offline tests, incl. end-to-end planner -> A2A -> specialist
 python scripts/load_test.py http://localhost:8001 --requests 50 --concurrency 10
 make eval                         # adk eval (needs API key + agents running)
 python eval/judge.py --runs 3     # LLM-as-judge -> eval/results.md (needs API key + agents)
@@ -108,4 +110,5 @@ Tracing: set `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g. a local Jaeger at `http://local
 - [x] Zero-setup offline demo
 - [x] Specialists as AgentTools: parallel fan-out, data minimisation, delegation stats
 - [x] Indirect-injection guard, tool-result PII masking, Prometheus metrics, versioned prompts
+- [x] Handler timeouts, circuit breaker, reply cap, mypy and coverage gates, ADRs
 - [ ] Per-agent identities (Cloud Run ID tokens / mTLS) instead of one shared token

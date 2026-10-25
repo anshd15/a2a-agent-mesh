@@ -56,12 +56,17 @@ sequenceDiagram
 | PII masked in tool results, not just user text | A specialist reply is model input too, so `redact_pii` rewrites function responses as well. |
 | Prometheus metrics per specialist | Outcome counts (ok / cache_hit / degraded / error) and latency histograms are what alerting and SLOs are built on; traces explain individual requests. |
 | Prompts as versioned files | The planner prompt lives in `mesh/orchestrator/prompts/planner.md`; each session and judge report records `planner@<version>`, so a score change can be traced to a prompt change. |
+| Timeout per handler call | A hung LLM call is cancelled and retried or degraded before the planner's own A2A timeout fires, so it never pins a concurrency slot. |
+| Circuit breaker on the planner side | A specialist that keeps failing costs the traveller nothing after three tries; recovery is detected with one trial call per cooldown. State is per process because specialist health is global. |
+| Cap on specialist reply size | One flooding specialist cannot blow the context window or the token bill; the cap runs after injection detection so nothing hides past it. |
 | Delegation stats in session state | Calls, failures and degraded answers per specialist are visible per conversation and to evals without opening a trace. |
 | Rule-based fallback per specialist | An LLM outage returns inventory-backed options marked `[degraded mode]` instead of an error; never cached, so the LLM path is retried next time. |
 | Cost circuit breaker as a callback | A runaway delegation loop stops at `MAX_SESSION_COST_USD` before it becomes a bill, with no change to the model or tools. |
 | Preferences in `user:` state | ADK shares `user:`-prefixed state across a traveller's sessions, so memory needs no extra service and shows up in the instruction template. |
 | `require_confirmation` on `book_trip` | The one irreversible action pauses for explicit approval; declining means the tool never executes. |
 | Seeded mock inventory | Evals compare planner behaviour, not random data, so score changes mean something. |
+
+The reasoning behind the biggest decisions is in [docs/adr](adr/README.md).
 
 ## Measuring quality
 
